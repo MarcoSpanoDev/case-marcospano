@@ -274,6 +274,39 @@
 
       return result;
     },
+    formatTimeFragments(value) {
+      let result = value;
+
+      // "2:30 PM" / "02:30 PM" -> "14:30 Uhr"
+      result = result.replace(
+        /\b(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)\b/gi,
+        (match, hour, minute, period) => {
+          let h = Number(hour);
+          const normalizedPeriod = period.toUpperCase();
+
+          if (normalizedPeriod === "PM" && h !== 12) h += 12;
+          if (normalizedPeriod === "AM" && h === 12) h = 0;
+
+          return `${String(h).padStart(2, "0")}:${minute} Uhr`;
+        },
+      );
+
+      // "2 PM" -> "14:00 Uhr"
+      result = result.replace(
+        /\b(0?[1-9]|1[0-2])\s*(AM|PM)\b/gi,
+        (match, hour, period) => {
+          let h = Number(hour);
+          const normalizedPeriod = period.toUpperCase();
+
+          if (normalizedPeriod === "PM" && h !== 12) h += 12;
+          if (normalizedPeriod === "AM" && h === 12) h = 0;
+
+          return `${String(h).padStart(2, "0")}:00 Uhr`;
+        },
+      );
+
+      return result;
+    },
 
     parseEnglishAmount(rawAmount) {
       // Strip English thousands separator (comma), keep decimal dot
@@ -315,6 +348,8 @@
       result = this.applyTranslations(result);
       result = this.formatDateFragments(result);
       result = this.formatCurrencyFragments(result);
+      result = this.formatTimeFragments(result);
+
       return result;
     },
 
@@ -606,8 +641,13 @@
   antiFlicker.textContent = "body{visibility:hidden!important}";
   document.head.appendChild(antiFlicker);
 
-  StayAILocalization.run();
-  antiFlicker.remove(); // body becomes visible again — already translated
+  try {
+    StayAILocalization.run();
+  } catch (error) {
+    console.error("[StayAI] Initial localization failed.", error);
+  } finally {
+    antiFlicker.remove();
+  }
   StayAILocalization.observe();
   StayAILocalization.installRouteHook();
 
