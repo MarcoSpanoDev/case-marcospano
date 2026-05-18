@@ -7,6 +7,8 @@
    * Purpose:
    * - Translate missing English UI strings in the StayAI customer portal
    * - Format dates, times and EUR currency values for German customers
+   * - Handle dynamically rendered SPA content
+   * - Handle split text nodes without destroying React-controlled number nodes
    * - Keep the solution extendable through a centralized translation dictionary
    * - Allow runtime additions through the browser console
    */
@@ -43,6 +45,17 @@
       "Next delivery:": "Nächste Lieferung:",
     },
 
+    selectionSummary: {
+      "You have selected": "Du hast",
+      selected: "ausgewählt",
+      of: "von",
+      flavors: "Geschmacksrichtungen",
+    },
+
+    billingFrequency: {
+      "Billed every": "Alle",
+    },
+
     statusLines: {
       "Skipped until": "Übersprungen bis",
       "Paused until": "Pausiert bis",
@@ -50,6 +63,7 @@
 
     frequencyUnits: {
       Every: "Alle",
+      every: "alle",
       week: "Woche",
       weeks: "Wochen",
       day: "Tag",
@@ -101,6 +115,7 @@
       textNodesChanged: 0,
       attributesChanged: 0,
       splitCurrencyNodesChanged: 0,
+      splitPhraseElementsChanged: 0,
       totalChanges: 0,
       runtimeTranslationsAdded: 0,
       runtimeTranslationsRemoved: 0,
@@ -335,9 +350,52 @@
       return this.compiledPatterns;
     },
 
+    getDirectTextNodes(element) {
+      return [...element.childNodes].filter(
+        (node) => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim(),
+      );
+    },
+
+    getAllDirectTextNodes(element) {
+      return [...element.childNodes].filter(
+        (node) => node.nodeType === Node.TEXT_NODE,
+      );
+    },
+
+    hasNestedElementChildren(element) {
+      return element.children.length > 0;
+    },
+
+    setNodeValueIfChanged(node, value) {
+      if (!node || node.nodeValue === value) return false;
+      node.nodeValue = value;
+      return true;
+    },
+
+    markSplitPhraseChange(changed) {
+      if (!changed) return;
+
+      this.stats.splitPhraseElementsChanged += 1;
+      this.stats.totalChanges += 1;
+    },
+
     // =========================================================================
     // Localization pipeline
     // =========================================================================
+
+    applyDynamicPhraseRules(value) {
+      let result = value;
+
+      // Safe for non-split single text nodes.
+      // Split billing phrases are handled separately in processSplitPhraseElement
+      // so dynamic number nodes can remain React-controlled.
+      result = result.replace(
+        /\bYou have selected\s+(\d+)\s+of\s+(\d+)\s+flavors\b/gi,
+        "Du hast $1 von $2 Geschmacksrichtungen ausgewählt",
+      );
+
+      return result;
+    },
 
     applyTranslations(value) {
       const normalized = this.normalizeWhitespace(value);
@@ -362,7 +420,7 @@
     formatDateFragments(value) {
       let result = value;
 
-      // "5 Jan" or "5 January" -> "5. Jan." / "5. Januar"
+      // "5 Jan" or "5 January" becomes "5. Jan." or "5. Januar"
       result = result.replace(
         /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/g,
         (match, day, month) => {
@@ -371,7 +429,7 @@
         },
       );
 
-      // "January 5, 2024" -> "05.01.2024"
+      // "January 5, 2024" becomes "05.01.2024"
       result = result.replace(
         /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})\b/g,
         (match, month, day, year) => {
@@ -380,7 +438,7 @@
         },
       );
 
-      // "Monday, 05.01.2024" -> "Montag, 05.01.2024"
+      // "Monday, 05.01.2024" becomes "Montag, 05.01.2024"
       result = result.replace(
         /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*(\d{1,2}\.\d{1,2}\.\d{4})\b/g,
         (match, weekday, datePart) => {
@@ -395,7 +453,7 @@
     formatTimeFragments(value) {
       let result = value;
 
-      // "2:30 PM" or "02:30 PM" -> "14:30 Uhr"
+      // "2:30 PM" or "02:30 PM" becomes "14:30 Uhr"
       result = result.replace(
         /\b(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)\b/gi,
         (match, hour, minute, period) => {
@@ -409,7 +467,7 @@
         },
       );
 
-      // "2 PM" -> "14:00 Uhr"
+      // "2 PM" becomes "14:00 Uhr"
       result = result.replace(
         /\b(0?[1-9]|1[0-2])\s*(AM|PM)\b/gi,
         (match, hour, period) => {
@@ -442,10 +500,10 @@
     formatCurrencyFragments(value) {
       /**
        * Converts English EUR formats to German EUR format:
-       * - €89.92 -> 89,92 €
-       * - 89.92 € -> 89,92 €
-       * - EUR 89.92 -> 89,92 €
-       * - 89.92 EUR -> 89,92 €
+       * - €89.92 becomes 89,92 €
+       * - 89.92 € becomes 89,92 €
+       * - EUR 89.92 becomes 89,92 €
+       * - 89.92 EUR becomes 89,92 €
        *
        * Important:
        * The amount pattern only targets English number formats.
@@ -469,6 +527,7 @@
     localizeValue(value) {
       let result = value;
 
+      result = this.applyDynamicPhraseRules(result);
       result = this.applyTranslations(result);
       result = this.formatDateFragments(result);
       result = this.formatCurrencyFragments(result);
@@ -511,17 +570,230 @@
       }
     },
 
-    getDirectTextNodes(element) {
-      return [...element.childNodes].filter(
-        (node) => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim(),
+    processSplitPhraseElement(element) {
+      if (this.shouldIgnoreElement(element)) return;
+
+      const textNodes = this.getDirectTextNodes(element);
+      if (textNodes.length < 2) return;
+
+      // Very conservative:
+      // Do not rewrite containers that have nested elements.
+      // This prevents destroying larger component structures.
+      if (this.hasNestedElementChildren(element)) return;
+
+      const normalizedValues = textNodes.map((node) =>
+        this.normalizeWhitespace(node.nodeValue),
       );
+
+      const fullText = this.normalizeWhitespace(element.textContent);
+      if (!fullText) return;
+
+      // ----------------------------------------------------------------------
+      // Billing frequency split nodes
+      //
+      // Example before:
+      // <p>
+      //   "Billed every "
+      //   "4"
+      //   " Wochen"
+      // </p>
+      //
+      // Example after:
+      // <p>
+      //   "Alle "
+      //   "4"
+      //   " Wochen abgerechnet"
+      // </p>
+      //
+      // Important:
+      // The number node is never replaced, so React can still update 4 to 8.
+      // ----------------------------------------------------------------------
+
+      const billingWeeksMatch = fullText.match(
+        /^(Billed every|Alle)\s+(\d+)\s+(weeks?|Wochen)(?:\s+abgerechnet)?$/i,
+      );
+
+      if (billingWeeksMatch) {
+        const prefixIndex = normalizedValues.findIndex((value) =>
+          /^(Billed every|Alle)$/i.test(value),
+        );
+
+        const numberIndex = normalizedValues.findIndex((value) =>
+          /^\d+$/.test(value),
+        );
+
+        const unitIndex = normalizedValues.findIndex((value) =>
+          /^(weeks?|Wochen)(?:\s+abgerechnet)?$/i.test(value),
+        );
+
+        if (
+          prefixIndex === -1 ||
+          numberIndex === -1 ||
+          unitIndex === -1 ||
+          prefixIndex === numberIndex ||
+          numberIndex === unitIndex
+        ) {
+          return;
+        }
+
+        let changed = false;
+
+        changed =
+          this.setNodeValueIfChanged(textNodes[prefixIndex], "Alle ") ||
+          changed;
+
+        changed =
+          this.setNodeValueIfChanged(
+            textNodes[unitIndex],
+            " Wochen abgerechnet",
+          ) || changed;
+
+        this.markSplitPhraseChange(changed);
+        return;
+      }
+
+      const billingDaysMatch = fullText.match(
+        /^(Billed every|Alle)\s+(\d+)\s+(days?|Tage)(?:\s+abgerechnet)?$/i,
+      );
+
+      if (billingDaysMatch) {
+        const prefixIndex = normalizedValues.findIndex((value) =>
+          /^(Billed every|Alle)$/i.test(value),
+        );
+
+        const numberIndex = normalizedValues.findIndex((value) =>
+          /^\d+$/.test(value),
+        );
+
+        const unitIndex = normalizedValues.findIndex((value) =>
+          /^(days?|Tage)(?:\s+abgerechnet)?$/i.test(value),
+        );
+
+        if (
+          prefixIndex === -1 ||
+          numberIndex === -1 ||
+          unitIndex === -1 ||
+          prefixIndex === numberIndex ||
+          numberIndex === unitIndex
+        ) {
+          return;
+        }
+
+        let changed = false;
+
+        changed =
+          this.setNodeValueIfChanged(textNodes[prefixIndex], "Alle ") ||
+          changed;
+
+        changed =
+          this.setNodeValueIfChanged(
+            textNodes[unitIndex],
+            " Tage abgerechnet",
+          ) || changed;
+
+        this.markSplitPhraseChange(changed);
+        return;
+      }
+
+      const billingMonthsMatch = fullText.match(
+        /^(Billed every|Alle)\s+(\d+)\s+(months?|Monate)(?:\s+abgerechnet)?$/i,
+      );
+
+      if (billingMonthsMatch) {
+        const prefixIndex = normalizedValues.findIndex((value) =>
+          /^(Billed every|Alle)$/i.test(value),
+        );
+
+        const numberIndex = normalizedValues.findIndex((value) =>
+          /^\d+$/.test(value),
+        );
+
+        const unitIndex = normalizedValues.findIndex((value) =>
+          /^(months?|Monate)(?:\s+abgerechnet)?$/i.test(value),
+        );
+
+        if (
+          prefixIndex === -1 ||
+          numberIndex === -1 ||
+          unitIndex === -1 ||
+          prefixIndex === numberIndex ||
+          numberIndex === unitIndex
+        ) {
+          return;
+        }
+
+        let changed = false;
+
+        changed =
+          this.setNodeValueIfChanged(textNodes[prefixIndex], "Alle ") ||
+          changed;
+
+        changed =
+          this.setNodeValueIfChanged(
+            textNodes[unitIndex],
+            " Monate abgerechnet",
+          ) || changed;
+
+        this.markSplitPhraseChange(changed);
+        return;
+      }
+
+      // ----------------------------------------------------------------------
+      // Selected flavors split nodes
+      //
+      // Example:
+      // "You have selected " + "2" + " of " + "4" + " flavors"
+      //
+      // Number nodes are kept intact.
+      // ----------------------------------------------------------------------
+
+      const selectedFlavorsMatch = fullText.match(
+        /^(You have selected|Du hast)\s+(\d+)\s+(of|von)\s+(\d+)\s+(flavors|Geschmacksrichtungen)(?:\s+ausgewählt)?$/i,
+      );
+
+      if (selectedFlavorsMatch) {
+        const numberIndexes = normalizedValues
+          .map((value, index) => (/^\d+$/.test(value) ? index : -1))
+          .filter((index) => index !== -1);
+
+        if (numberIndexes.length < 2) return;
+
+        let changed = false;
+
+        textNodes.forEach((node, index) => {
+          const value = this.normalizeWhitespace(node.nodeValue);
+
+          if (/^(You have selected|Du hast)$/i.test(value)) {
+            changed = this.setNodeValueIfChanged(node, "Du hast ") || changed;
+            return;
+          }
+
+          if (/^(of|von)$/i.test(value)) {
+            changed = this.setNodeValueIfChanged(node, " von ") || changed;
+            return;
+          }
+
+          if (
+            /^(flavors|Geschmacksrichtungen)(?:\s+ausgewählt)?$/i.test(value)
+          ) {
+            changed =
+              this.setNodeValueIfChanged(
+                node,
+                " Geschmacksrichtungen ausgewählt",
+              ) || changed;
+            return;
+          }
+
+          if (!numberIndexes.includes(index)) {
+            const localized = this.localizeValue(node.nodeValue);
+            changed = this.setNodeValueIfChanged(node, localized) || changed;
+          }
+        });
+
+        this.markSplitPhraseChange(changed);
+      }
     },
 
-    getAllDirectTextNodes(element) {
-      return [...element.childNodes].filter(
-        (node) => node.nodeType === Node.TEXT_NODE,
-      );
-    },
     processSplitCurrencyElement(element) {
       if (this.shouldIgnoreElement(element)) return;
 
@@ -567,8 +839,8 @@
       // Case after first conversion:
       // <span data-stayai-split-currency="true"> "" "269.76" </span>
       //
-      // StayAI updates only the amount node. We still know from the marker that this
-      // element represents a split currency value.
+      // StayAI updates only the amount node.
+      // The marker lets us format it again without needing the euro node.
       if (element.getAttribute("data-stayai-split-currency") === "true") {
         const amountIndex = values.findIndex((value) =>
           englishAmountPattern.test(value),
@@ -598,7 +870,7 @@
         return;
       }
 
-      // Alternative structures:
+      // Alternative structure:
       // <span> "EUR" "89.92" </span>
       const eurIndex = values.findIndex((value) => value === "EUR");
 
@@ -613,37 +885,14 @@
         }
       }
     },
-    // processSplitCurrencyElement(element) {
-    //   if (this.shouldIgnoreElement(element)) return;
 
-    //   const textNodes = this.getDirectTextNodes(element);
-    //   if (textNodes.length < 2) return;
+    processElement(element) {
+      if (this.shouldIgnoreElement(element)) return;
 
-    //   const combined = textNodes.map((node) => node.nodeValue.trim()).join("");
-
-    //   const amountPattern =
-    //     "(-?(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+))";
-
-    //   const match =
-    //     combined.match(new RegExp(`^€${amountPattern}$`)) ||
-    //     combined.match(new RegExp(`^${amountPattern}€$`)) ||
-    //     combined.match(new RegExp(`^${amountPattern}\\s*EUR$`)) ||
-    //     combined.match(new RegExp(`^EUR\\s*${amountPattern}$`));
-
-    //   if (!match) return;
-
-    //   const formatted = this.formatEuroAmount(match[1]);
-    //   if (!formatted) return;
-
-    //   textNodes[0].nodeValue = formatted;
-
-    //   for (let i = 1; i < textNodes.length; i += 1) {
-    //     textNodes[i].nodeValue = "";
-    //   }
-
-    //   this.stats.splitCurrencyNodesChanged += 1;
-    //   this.stats.totalChanges += 1;
-    // },
+      this.processAttributes(element);
+      this.processSplitPhraseElement(element);
+      this.processSplitCurrencyElement(element);
+    },
 
     walk(root = this.config.root) {
       if (!root) return;
@@ -655,9 +904,7 @@
 
       if (root.nodeType === Node.ELEMENT_NODE) {
         if (this.shouldIgnoreElement(root)) return;
-
-        this.processAttributes(root);
-        this.processSplitCurrencyElement(root);
+        this.processElement(root);
       }
 
       const walker = document.createTreeWalker(
@@ -688,8 +935,7 @@
         if (node.nodeType === Node.TEXT_NODE) {
           this.processTextNode(node);
         } else if (node.nodeType === Node.ELEMENT_NODE) {
-          this.processAttributes(node);
-          this.processSplitCurrencyElement(node);
+          this.processElement(node);
         }
       }
     },
@@ -756,6 +1002,14 @@
           if (mutation.type === "childList") {
             for (const node of mutation.addedNodes) {
               this.run(node);
+
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                this.processElement(node);
+
+                if (node.parentElement) {
+                  this.processElement(node.parentElement);
+                }
+              }
             }
 
             if (mutation.addedNodes.length > 0) {
@@ -774,7 +1028,7 @@
             this.processTextNode(mutation.target);
 
             if (mutation.target.parentElement) {
-              this.processSplitCurrencyElement(mutation.target.parentElement);
+              this.processElement(mutation.target.parentElement);
             }
 
             if (mutation.target.nodeValue !== before) {
@@ -873,6 +1127,7 @@
         textNodesChanged: 0,
         attributesChanged: 0,
         splitCurrencyNodesChanged: 0,
+        splitPhraseElementsChanged: 0,
         totalChanges: 0,
         runtimeTranslationsAdded: 0,
         runtimeTranslationsRemoved: 0,
