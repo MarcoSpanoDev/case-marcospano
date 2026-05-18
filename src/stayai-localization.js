@@ -517,37 +517,133 @@
       );
     },
 
+    getAllDirectTextNodes(element) {
+      return [...element.childNodes].filter(
+        (node) => node.nodeType === Node.TEXT_NODE,
+      );
+    },
     processSplitCurrencyElement(element) {
       if (this.shouldIgnoreElement(element)) return;
 
-      const textNodes = this.getDirectTextNodes(element);
+      const textNodes = this.getAllDirectTextNodes(element);
       if (textNodes.length < 2) return;
 
-      const combined = textNodes.map((node) => node.nodeValue.trim()).join("");
+      const englishAmountPattern =
+        /^-?(?:\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+\.\d{1,2}|\d+)$/;
 
-      const amountPattern =
-        "(-?(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+))";
+      const germanCurrencyPattern = /^-?\d{1,3}(?:\.\d{3})*,\d{2}\s*€$/;
 
-      const match =
-        combined.match(new RegExp(`^€${amountPattern}$`)) ||
-        combined.match(new RegExp(`^${amountPattern}€$`)) ||
-        combined.match(new RegExp(`^${amountPattern}\\s*EUR$`)) ||
-        combined.match(new RegExp(`^EUR\\s*${amountPattern}$`));
+      const values = textNodes.map((node) => node.nodeValue.trim());
 
-      if (!match) return;
+      const markSplitCurrency = () => {
+        element.setAttribute("data-stayai-split-currency", "true");
+      };
 
-      const formatted = this.formatEuroAmount(match[1]);
-      if (!formatted) return;
+      const formatAmountNode = (amountIndex, nodesToClear = []) => {
+        const rawAmount = textNodes[amountIndex]?.nodeValue.trim();
 
-      textNodes[0].nodeValue = formatted;
+        if (!rawAmount) return false;
+        if (germanCurrencyPattern.test(rawAmount)) return false;
+        if (!englishAmountPattern.test(rawAmount)) return false;
 
-      for (let i = 1; i < textNodes.length; i += 1) {
-        textNodes[i].nodeValue = "";
+        const formatted = this.formatEuroAmount(rawAmount);
+        if (!formatted) return false;
+
+        for (const index of nodesToClear) {
+          if (textNodes[index]) {
+            textNodes[index].nodeValue = "";
+          }
+        }
+
+        textNodes[amountIndex].nodeValue = formatted;
+        markSplitCurrency();
+
+        this.stats.splitCurrencyNodesChanged += 1;
+        this.stats.totalChanges += 1;
+
+        return true;
+      };
+
+      // Case after first conversion:
+      // <span data-stayai-split-currency="true"> "" "269.76" </span>
+      //
+      // StayAI updates only the amount node. We still know from the marker that this
+      // element represents a split currency value.
+      if (element.getAttribute("data-stayai-split-currency") === "true") {
+        const amountIndex = values.findIndex((value) =>
+          englishAmountPattern.test(value),
+        );
+
+        if (amountIndex !== -1) {
+          formatAmountNode(amountIndex);
+        }
+
+        return;
       }
 
-      this.stats.splitCurrencyNodesChanged += 1;
-      this.stats.totalChanges += 1;
+      // Initial React structure:
+      // <span> "€" "89.92" </span>
+      const euroIndex = values.findIndex((value) => value === "€");
+
+      if (euroIndex !== -1) {
+        const amountIndex = values.findIndex(
+          (value, index) =>
+            index !== euroIndex && englishAmountPattern.test(value),
+        );
+
+        if (amountIndex !== -1) {
+          formatAmountNode(amountIndex, [euroIndex]);
+        }
+
+        return;
+      }
+
+      // Alternative structures:
+      // <span> "EUR" "89.92" </span>
+      const eurIndex = values.findIndex((value) => value === "EUR");
+
+      if (eurIndex !== -1) {
+        const amountIndex = values.findIndex(
+          (value, index) =>
+            index !== eurIndex && englishAmountPattern.test(value),
+        );
+
+        if (amountIndex !== -1) {
+          formatAmountNode(amountIndex, [eurIndex]);
+        }
+      }
     },
+    // processSplitCurrencyElement(element) {
+    //   if (this.shouldIgnoreElement(element)) return;
+
+    //   const textNodes = this.getDirectTextNodes(element);
+    //   if (textNodes.length < 2) return;
+
+    //   const combined = textNodes.map((node) => node.nodeValue.trim()).join("");
+
+    //   const amountPattern =
+    //     "(-?(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+))";
+
+    //   const match =
+    //     combined.match(new RegExp(`^€${amountPattern}$`)) ||
+    //     combined.match(new RegExp(`^${amountPattern}€$`)) ||
+    //     combined.match(new RegExp(`^${amountPattern}\\s*EUR$`)) ||
+    //     combined.match(new RegExp(`^EUR\\s*${amountPattern}$`));
+
+    //   if (!match) return;
+
+    //   const formatted = this.formatEuroAmount(match[1]);
+    //   if (!formatted) return;
+
+    //   textNodes[0].nodeValue = formatted;
+
+    //   for (let i = 1; i < textNodes.length; i += 1) {
+    //     textNodes[i].nodeValue = "";
+    //   }
+
+    //   this.stats.splitCurrencyNodesChanged += 1;
+    //   this.stats.totalChanges += 1;
+    // },
 
     walk(root = this.config.root) {
       if (!root) return;
@@ -674,7 +770,12 @@
 
           if (mutation.type === "characterData") {
             const before = mutation.target.nodeValue;
+
             this.processTextNode(mutation.target);
+
+            if (mutation.target.parentElement) {
+              this.processSplitCurrencyElement(mutation.target.parentElement);
+            }
 
             if (mutation.target.nodeValue !== before) {
               needsFollowUpRun = true;
