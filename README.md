@@ -112,6 +112,14 @@ presentation-notes.md
 test-cases.md
 ```
 
+### Übersetzungen zur Laufzeit ergänzen
+
+Neue Übersetzungen können während des Testens direkt über die Browser Console ergänzt werden.
+
+```js
+StayAILocalization.addTranslation("Billed every", "Abgerechnet alle");
+```
+
 ## Getroffene Annahmen
 
 - Ziel-Locale ist `de-DE`
@@ -161,3 +169,7 @@ https://chatgpt.com/g/g-p-6a09eb7d4e50819194fe6b73d071cbb4-case-study-meta/proje
 - Monitoring oder Logging für nicht übersetzte Texte einbauen
 - robustere Selektoren verwenden, falls StayAI stabile Attribute bereitstellt
 - automatisierte Tests für Datums-, Uhrzeit- und Währungsformatierung ergänzen
+
+```
+
+```

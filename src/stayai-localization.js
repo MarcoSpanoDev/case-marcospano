@@ -1,16 +1,100 @@
 (() => {
   "use strict";
 
+  /**
+   * StayAI Localization Injection
+   *
+   * Purpose:
+   * - Translate missing English UI strings in the StayAI customer portal
+   * - Format dates, times and EUR currency values for German customers
+   * - Keep the solution extendable through a centralized translation dictionary
+   * - Allow runtime additions through the browser console
+   */
+
+  // ==========================================================================
+  // Translation config
+  // ==========================================================================
+
+  const TRANSLATION_GROUPS = {
+    navigation: {
+      "Notifications (F8)": "Benachrichtigungen (F8)",
+    },
+
+    subscriptionStates: {
+      Active: "Aktiv",
+      Paused: "Pausiert",
+      Skipped: "Übersprungen",
+    },
+
+    subscriptionLabels: {
+      "New Abonnement": "Neues Abonnement",
+      "Paused Abonnements": "Pausierte Abonnements",
+      Subscriptions: "Abonnements",
+      Subscription: "Abonnement",
+    },
+
+    subscriptionDetails: {
+      "Started on": "Gestartet am",
+      "Selected flavors: (": "Ausgewählte Geschmacksrichtungen: (",
+      "flavors for": "Geschmacksrichtungen für",
+
+      // Known mixed-language variant in the current StayAI UI.
+      "Weiter delivery:": "Nächste Lieferung:",
+      "Next delivery:": "Nächste Lieferung:",
+    },
+
+    statusLines: {
+      "Skipped until": "Übersprungen bis",
+      "Paused until": "Pausiert bis",
+    },
+
+    frequencyUnits: {
+      Every: "Alle",
+      week: "Woche",
+      weeks: "Wochen",
+      day: "Tag",
+      days: "Tage",
+      month: "Monat",
+      months: "Monate",
+    },
+
+    actions: {
+      "Skip next": "Nächste überspringen",
+      Unskip: "Überspringen aufheben",
+      Resume: "Fortsetzen",
+      Edit: "Bearbeiten",
+      Remove: "Entfernen",
+      Manage: "Verwalten",
+    },
+
+    orderAndAccount: {
+      "Order history": "Bestellverlauf",
+      "Next order": "Nächste Bestellung",
+      "Shipping address": "Lieferadresse",
+      "Payment method": "Zahlungsmethode",
+      Quantity: "Menge",
+      Frequency: "Häufigkeit",
+    },
+  };
+
+  function createTranslationMap(groups) {
+    return new Map(
+      Object.values(groups).flatMap((group) => Object.entries(group)),
+    );
+  }
+
   const StayAILocalization = {
-    // ─── State ───────────────────────────────────────────────────────────────
+    // =========================================================================
+    // State
+    // =========================================================================
 
     observer: null,
     debounceTimer: null,
-    debounceStart: null, // tracks when the current debounce window opened (for maxWait)
+    debounceStart: null,
     isRunning: false,
-    pendingRun: false, // queues a follow-up run if one was requested during isRunning
+    pendingRun: false,
     routeHookInstalled: false,
-    compiledPatterns: null, // pre-compiled translation patterns (built lazily)
+    compiledPatterns: null,
 
     stats: {
       runs: 0,
@@ -18,14 +102,18 @@
       attributesChanged: 0,
       splitCurrencyNodesChanged: 0,
       totalChanges: 0,
+      runtimeTranslationsAdded: 0,
+      runtimeTranslationsRemoved: 0,
     },
 
-    // ─── Config ───────────────────────────────────────────────────────────────
+    // =========================================================================
+    // Config
+    // =========================================================================
 
     config: {
       root: document.body,
       debounceMs: 50,
-      maxWaitMs: 1000, // force a run after this long even if mutations keep firing
+      maxWaitMs: 1000,
       attributes: ["placeholder", "title", "aria-label", "alt"],
       ignoredTags: new Set([
         "SCRIPT",
@@ -40,64 +128,12 @@
       ]),
     },
 
-    // ─── Translations ─────────────────────────────────────────────────────────
+    translationGroups: TRANSLATION_GROUPS,
+    translations: createTranslationMap(TRANSLATION_GROUPS),
 
-    translations: new Map([
-      // --- Navigation & UI ---
-      ["Notifications (F8)", "Benachrichtigungen (F8)"],
-
-      // --- Subscription states ---
-      ["Active", "Aktiv"],
-      ["Paused", "Pausiert"],
-      ["Skipped", "Übersprungen"],
-
-      // --- Subscription labels ---
-      ["New Abonnement", "Neues Abonnement"],
-      ["Paused Abonnements", "Pausierte Abonnements"],
-      ["Subscriptions", "Abonnements"],
-      ["Subscription", "Abonnement"],
-
-      // --- Subscription detail lines ---
-      ["Started on", "Gestartet am"],
-      ["Selected flavors: (", "Ausgewählte Geschmacksrichtungen: ("],
-      ["flavors for", "Geschmacksrichtungen für"],
-
-      // --- Next-delivery variants
-      // NOTE: "Weiter delivery:" is a known typo in the StayAI UI — kept intentionally
-      ["Weiter delivery:", "Nächste Lieferung:"],
-      ["Next delivery:", "Nächste Lieferung:"],
-
-      // --- Skip / pause status lines ---
-      ["Skipped until", "Übersprungen bis"],
-      ["Paused until", "Pausiert bis"],
-
-      // --- Frequency units ---
-      ["Every", "Alle"],
-      ["week", "Woche"],
-      ["weeks", "Wochen"],
-      ["day", "Tag"],
-      ["days", "Tage"],
-      ["month", "Monat"],
-      ["months", "Monate"],
-
-      // --- Common actions ---
-      ["Skip next", "Nächste überspringen"],
-      ["Unskip", "Überspringen aufheben"],
-      ["Resume", "Fortsetzen"],
-      ["Edit", "Bearbeiten"],
-      ["Remove", "Entfernen"],
-      ["Manage", "Verwalten"],
-
-      // --- Order / account labels ---
-      ["Order history", "Bestellverlauf"],
-      ["Next order", "Nächste Bestellung"],
-      ["Shipping address", "Lieferadresse"],
-      ["Payment method", "Zahlungsmethode"],
-      ["Quantity", "Menge"],
-      ["Frequency", "Häufigkeit"],
-    ]),
-
-    // ─── Date helpers ─────────────────────────────────────────────────────────
+    // =========================================================================
+    // Date and time config
+    // =========================================================================
 
     monthTranslations: new Map([
       ["Jan", "Jan."],
@@ -108,7 +144,7 @@
       ["March", "März"],
       ["Apr", "Apr."],
       ["April", "April"],
-      ["May", "Mai"], // only used inside date-regex context — no standalone risk
+      ["May", "Mai"],
       ["Jun", "Juni"],
       ["June", "Juni"],
       ["Jul", "Juli"],
@@ -161,14 +197,96 @@
       ["Sunday", "Sonntag"],
     ]),
 
-    // ─── Formatters ───────────────────────────────────────────────────────────
-
     euroFormatter: new Intl.NumberFormat("de-DE", {
       style: "currency",
       currency: "EUR",
     }),
 
-    // ─── Regex helpers ────────────────────────────────────────────────────────
+    // =========================================================================
+    // Runtime translation API
+    // =========================================================================
+
+    invalidateTranslationCache() {
+      this.compiledPatterns = null;
+    },
+
+    addTranslation(source, target) {
+      if (!source || !target) {
+        console.warn("[StayAI] addTranslation requires source and target.");
+        return this.report();
+      }
+
+      this.translations.set(String(source), String(target));
+      this.stats.runtimeTranslationsAdded += 1;
+      this.invalidateTranslationCache();
+
+      console.log(`[StayAI] Translation added: "${source}" -> "${target}"`);
+
+      return this.run(this.config.root);
+    },
+
+    addTranslations(entries) {
+      if (!entries || typeof entries !== "object") {
+        console.warn("[StayAI] addTranslations requires an object.");
+        return this.report();
+      }
+
+      let added = 0;
+
+      for (const [source, target] of Object.entries(entries)) {
+        if (!source || !target) continue;
+
+        this.translations.set(String(source), String(target));
+        added += 1;
+      }
+
+      this.stats.runtimeTranslationsAdded += added;
+      this.invalidateTranslationCache();
+
+      console.log(`[StayAI] ${added} translation(s) added.`);
+
+      return this.run(this.config.root);
+    },
+
+    removeTranslation(source) {
+      if (!source) {
+        console.warn("[StayAI] removeTranslation requires a source string.");
+        return this.report();
+      }
+
+      const removed = this.translations.delete(String(source));
+
+      if (removed) {
+        this.stats.runtimeTranslationsRemoved += 1;
+        this.invalidateTranslationCache();
+        console.log(`[StayAI] Translation removed: "${source}"`);
+        return this.run(this.config.root);
+      }
+
+      console.warn(`[StayAI] No translation found for: "${source}"`);
+      return this.report();
+    },
+
+    listTranslations() {
+      const entries = [...this.translations.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([source, target]) => ({ source, target }));
+
+      console.table(entries);
+      return entries;
+    },
+
+    hasTranslation(source) {
+      return this.translations.has(String(source));
+    },
+
+    getTranslation(source) {
+      return this.translations.get(String(source));
+    },
+
+    // =========================================================================
+    // Generic helpers
+    // =========================================================================
 
     shouldIgnoreElement(element) {
       if (!element) return true;
@@ -182,7 +300,7 @@
     },
 
     escapeRegExp(value) {
-      return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     },
 
     preserveOuterWhitespace(original, replacement) {
@@ -193,37 +311,37 @@
 
     makeTranslationPattern(source) {
       const escaped = this.escapeRegExp(source);
-      // Word-boundary guards only for purely alphabetic keys — prevents
-      // partial matches inside compound words while still catching "day" in
-      // "every 3 days" without needing special-casing.
-      return /^[A-Za-z]+$/.test(source)
-        ? new RegExp(`\\b${escaped}\\b`, "g")
-        : new RegExp(escaped, "g");
+
+      // Word guards only for purely alphabetic keys.
+      // This prevents replacing fragments inside longer words.
+      if (/^[A-Za-z]+$/.test(source)) {
+        return new RegExp(`\\b${escaped}\\b`, "g");
+      }
+
+      return new RegExp(escaped, "g");
     },
 
-    /**
-     * Lazily builds and caches pre-compiled patterns sorted longest-first
-     * so longer phrases always win over their shorter substrings.
-     */
     getCompiledPatterns() {
       if (this.compiledPatterns) return this.compiledPatterns;
 
       this.compiledPatterns = [...this.translations.entries()]
         .sort(([a], [b]) => b.length - a.length)
         .map(([source, target]) => ({
-          pattern: this.makeTranslationPattern(source),
+          source,
           target,
+          pattern: this.makeTranslationPattern(source),
         }));
 
       return this.compiledPatterns;
     },
 
-    // ─── Localization pipeline ────────────────────────────────────────────────
+    // =========================================================================
+    // Localization pipeline
+    // =========================================================================
 
     applyTranslations(value) {
       const normalized = this.normalizeWhitespace(value);
 
-      // Fast path: exact full-string match
       if (this.translations.has(normalized)) {
         return this.preserveOuterWhitespace(
           value,
@@ -231,20 +349,20 @@
         );
       }
 
-      // Partial replacements — longest patterns first (cached)
       let result = value;
+
       for (const { pattern, target } of this.getCompiledPatterns()) {
-        // Reset lastIndex before each use (patterns are reused across calls)
         pattern.lastIndex = 0;
         result = result.replace(pattern, target);
       }
+
       return result;
     },
 
     formatDateFragments(value) {
       let result = value;
 
-      // "5 Jan" / "5 January" → "5. Jan."
+      // "5 Jan" or "5 January" -> "5. Jan." / "5. Januar"
       result = result.replace(
         /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/g,
         (match, day, month) => {
@@ -253,7 +371,7 @@
         },
       );
 
-      // "January 5, 2024" → "05.01.2024"
+      // "January 5, 2024" -> "05.01.2024"
       result = result.replace(
         /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})\b/g,
         (match, month, day, year) => {
@@ -262,8 +380,7 @@
         },
       );
 
-      // "Monday, 05.01.2024" → "Montag, 05.01.2024"
-      // Runs after date conversion above so "Weekday, DD.MM.YYYY" is always in German date format
+      // "Monday, 05.01.2024" -> "Montag, 05.01.2024"
       result = result.replace(
         /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*(\d{1,2}\.\d{1,2}\.\d{4})\b/g,
         (match, weekday, datePart) => {
@@ -274,10 +391,11 @@
 
       return result;
     },
+
     formatTimeFragments(value) {
       let result = value;
 
-      // "2:30 PM" / "02:30 PM" -> "14:30 Uhr"
+      // "2:30 PM" or "02:30 PM" -> "14:30 Uhr"
       result = result.replace(
         /\b(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)\b/gi,
         (match, hour, minute, period) => {
@@ -309,10 +427,10 @@
     },
 
     parseEnglishAmount(rawAmount) {
-      // Strip English thousands separator (comma), keep decimal dot
       const amount = Number(
         String(rawAmount).replace(/\s/g, "").replace(/,/g, ""),
       );
+
       return Number.isFinite(amount) ? amount : null;
     },
 
@@ -322,18 +440,23 @@
     },
 
     formatCurrencyFragments(value) {
-      // Single combined pattern — one pass prevents step N+1 from re-processing
-      // output that step N just produced (the root cause of "89,92,00 €").
-      //
-      // Amount alternatives (English-format only, so already-German output is safe):
-      //   \d{1,3}(?:,\d{3})+(?:\.\d{1,2})?  →  1,234  /  1,234.56
-      //   \d+\.\d{1,2}                        →  89.92
-      //   \d+                                 →  89
-      // (?<![,.\d]) — negative lookbehind prevents matching "92" inside "89,92 €"
-      const a =
+      /**
+       * Converts English EUR formats to German EUR format:
+       * - €89.92 -> 89,92 €
+       * - 89.92 € -> 89,92 €
+       * - EUR 89.92 -> 89,92 €
+       * - 89.92 EUR -> 89,92 €
+       *
+       * Important:
+       * The amount pattern only targets English number formats.
+       * This avoids re-processing already converted values like "89,92 €".
+       */
+
+      const amountPattern =
         "-?(?<![,.\\d])(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+)";
+
       const pattern = new RegExp(
-        `€\\s*(${a})|(${a})\\s*€|(${a})\\s*EUR\\b|\\bEUR\\s*(${a})`,
+        `€\\s*(${amountPattern})|(${amountPattern})\\s*€|(${amountPattern})\\s*EUR\\b|\\bEUR\\s*(${amountPattern})`,
         "g",
       );
 
@@ -345,6 +468,7 @@
 
     localizeValue(value) {
       let result = value;
+
       result = this.applyTranslations(result);
       result = this.formatDateFragments(result);
       result = this.formatCurrencyFragments(result);
@@ -353,7 +477,9 @@
       return result;
     },
 
-    // ─── DOM processing ───────────────────────────────────────────────────────
+    // =========================================================================
+    // DOM processing
+    // =========================================================================
 
     processTextNode(node) {
       if (this.shouldIgnoreElement(node.parentElement)) return;
@@ -391,27 +517,22 @@
       );
     },
 
-    /**
-     * Handles cases where a currency value is split across multiple text nodes
-     * within one element, e.g. <span>€<strong/></span><span>19.99</span>.
-     * Combines all direct text nodes, checks if they form a valid currency
-     * string, then rewrites only the first node and blanks the rest.
-     */
     processSplitCurrencyElement(element) {
       if (this.shouldIgnoreElement(element)) return;
 
       const textNodes = this.getDirectTextNodes(element);
       if (textNodes.length < 2) return;
 
-      const combined = textNodes.map((n) => n.nodeValue.trim()).join("");
-      const amountPat =
+      const combined = textNodes.map((node) => node.nodeValue.trim()).join("");
+
+      const amountPattern =
         "(-?(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+))";
 
       const match =
-        combined.match(new RegExp(`^€${amountPat}$`)) ||
-        combined.match(new RegExp(`^${amountPat}€$`)) ||
-        combined.match(new RegExp(`^${amountPat}\\s*EUR$`)) ||
-        combined.match(new RegExp(`^EUR\\s*${amountPat}$`));
+        combined.match(new RegExp(`^€${amountPattern}$`)) ||
+        combined.match(new RegExp(`^${amountPattern}€$`)) ||
+        combined.match(new RegExp(`^${amountPattern}\\s*EUR$`)) ||
+        combined.match(new RegExp(`^EUR\\s*${amountPattern}$`));
 
       if (!match) return;
 
@@ -419,7 +540,8 @@
       if (!formatted) return;
 
       textNodes[0].nodeValue = formatted;
-      for (let i = 1; i < textNodes.length; i++) {
+
+      for (let i = 1; i < textNodes.length; i += 1) {
         textNodes[i].nodeValue = "";
       }
 
@@ -437,6 +559,7 @@
 
       if (root.nodeType === Node.ELEMENT_NODE) {
         if (this.shouldIgnoreElement(root)) return;
+
         this.processAttributes(root);
         this.processSplitCurrencyElement(root);
       }
@@ -451,17 +574,20 @@
                 ? NodeFilter.FILTER_REJECT
                 : NodeFilter.FILTER_ACCEPT;
             }
+
             if (node.nodeType === Node.TEXT_NODE) {
               return node.nodeValue.trim()
                 ? NodeFilter.FILTER_ACCEPT
                 : NodeFilter.FILTER_REJECT;
             }
+
             return NodeFilter.FILTER_REJECT;
           },
         },
       );
 
       let node;
+
       while ((node = walker.nextNode())) {
         if (node.nodeType === Node.TEXT_NODE) {
           this.processTextNode(node);
@@ -472,10 +598,11 @@
       }
     },
 
-    // ─── Run control ──────────────────────────────────────────────────────────
+    // =========================================================================
+    // Run control
+    // =========================================================================
 
     run(root = this.config.root) {
-      // If already running, remember that another pass is needed afterwards
       if (this.isRunning) {
         this.pendingRun = true;
         return this.report();
@@ -490,7 +617,6 @@
         this.isRunning = false;
       }
 
-      // A mutation arrived while we were running — schedule a follow-up
       if (this.pendingRun) {
         this.pendingRun = false;
         this.scheduleRun();
@@ -502,13 +628,12 @@
     scheduleRun() {
       const now = Date.now();
 
-      // Record when this debounce window opened
-      if (!this.debounceStart) this.debounceStart = now;
+      if (!this.debounceStart) {
+        this.debounceStart = now;
+      }
 
       clearTimeout(this.debounceTimer);
 
-      // If mutations have been firing continuously for maxWaitMs, run now
-      // instead of waiting forever for a quiet moment
       if (now - this.debounceStart >= this.config.maxWaitMs) {
         this.debounceStart = null;
         this.run(this.config.root);
@@ -521,7 +646,9 @@
       }, this.config.debounceMs);
     },
 
-    // ─── MutationObserver ─────────────────────────────────────────────────────
+    // =========================================================================
+    // MutationObserver
+    // =========================================================================
 
     observe() {
       if (this.observer) return;
@@ -555,7 +682,6 @@
           }
         }
 
-        // Follow-up for content that is inserted in multiple render phases.
         if (needsFollowUpRun) {
           this.scheduleRun();
         }
@@ -572,7 +698,9 @@
       console.log("[StayAI] MutationObserver active.");
     },
 
-    // ─── SPA route hook ───────────────────────────────────────────────────────
+    // =========================================================================
+    // SPA route handling
+    // =========================================================================
 
     installRouteHook() {
       if (this.routeHookInstalled) return;
@@ -586,33 +714,52 @@
         setTimeout(() => this.run(this.config.root), 400);
         setTimeout(() => this.run(this.config.root), 1000);
       };
-      const wrap =
-        (original) =>
-        (...args) => {
+
+      const wrapHistoryMethod = (original) => {
+        return (...args) => {
           const result = original.apply(history, args);
           rerunAfterRouteChange();
           return result;
         };
+      };
 
-      history.pushState = wrap(history.pushState);
-      history.replaceState = wrap(history.replaceState);
+      history.pushState = wrapHistoryMethod(history.pushState);
+      history.replaceState = wrapHistoryMethod(history.replaceState);
+
       window.addEventListener("popstate", rerunAfterRouteChange);
-      window.addEventListener("hashchange", rerunAfterRouteChange); // hash-based routers
+      window.addEventListener("hashchange", rerunAfterRouteChange);
 
       this.routeHookInstalled = true;
+
       console.log("[StayAI] SPA route hook active.");
     },
 
-    // ─── Lifecycle ────────────────────────────────────────────────────────────
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
 
     stop() {
       if (this.observer) {
         this.observer.disconnect();
         this.observer = null;
       }
+
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
+      this.debounceStart = null;
+
       console.log("[StayAI] MutationObserver stopped.");
+      return this.report();
+    },
+
+    restart() {
+      this.stop();
+      this.run(this.config.root);
+      this.observe();
+      this.installRouteHook();
+
+      console.log("[StayAI] Localization restarted.");
+      return this.report();
     },
 
     report() {
@@ -626,17 +773,20 @@
         attributesChanged: 0,
         splitCurrencyNodesChanged: 0,
         totalChanges: 0,
+        runtimeTranslationsAdded: 0,
+        runtimeTranslationsRemoved: 0,
       };
+
       return this.report();
     },
   };
 
-  // ─── Bootstrap ─────────────────────────────────────────────────────────────
+  // ==========================================================================
+  // Bootstrap
+  // ==========================================================================
 
   window.StayAILocalization = StayAILocalization;
 
-  // Anti-FOUC: hide the body immediately so untranslated content never flashes.
-  // The style is removed synchronously after the first translation run.
   const antiFlicker = document.createElement("style");
   antiFlicker.textContent = "body{visibility:hidden!important}";
   document.head.appendChild(antiFlicker);
@@ -648,6 +798,7 @@
   } finally {
     antiFlicker.remove();
   }
+
   StayAILocalization.observe();
   StayAILocalization.installRouteHook();
 
@@ -655,6 +806,10 @@
   console.log(
     "[StayAI] Localization injection active.",
     StayAILocalization.report(),
+  );
+
+  console.log(
+    "[StayAI] Runtime API available: addTranslation, addTranslations, removeTranslation, listTranslations, run, stop, restart, report.",
   );
 
   return StayAILocalization.report();
