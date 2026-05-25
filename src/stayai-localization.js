@@ -1,6 +1,11 @@
 (() => {
   "use strict";
 
+  // Console demos often run the snippet more than once. Stop an older copy first.
+  if (window.StayAILocalization?.stop) {
+    window.StayAILocalization.stop();
+  }
+
   /**
    * StayAI Localization Injection
    *
@@ -11,11 +16,8 @@
    * - Handle split text nodes without destroying React-controlled number nodes
    * - Keep the solution extendable through a centralized translation dictionary
    * - Allow runtime additions through the browser console
+   * - Provide optional debug logs and an inspectable change history
    */
-
-  // ==========================================================================
-  // Translation config
-  // ==========================================================================
 
   const TRANSLATION_GROUPS = {
     navigation: {
@@ -29,6 +31,7 @@
     },
 
     subscriptionLabels: {
+      "New Subscription": "Neues Abonnement",
       "New Abonnement": "Neues Abonnement",
       "Paused Abonnements": "Pausierte Abonnements",
       Subscriptions: "Abonnements",
@@ -39,8 +42,6 @@
       "Started on": "Gestartet am",
       "Selected flavors: (": "Ausgewählte Geschmacksrichtungen: (",
       "flavors for": "Geschmacksrichtungen für",
-
-      // Known mixed-language variant in the current StayAI UI.
       "Weiter delivery:": "Nächste Lieferung:",
       "Next delivery:": "Nächste Lieferung:",
     },
@@ -73,7 +74,7 @@
     },
 
     actions: {
-      "Skip next": "Nächste überspringen",
+      "Skip next": "Nächste Lieferung überspringen",
       Unskip: "Überspringen aufheben",
       Resume: "Fortsetzen",
       Edit: "Bearbeiten",
@@ -98,10 +99,6 @@
   }
 
   const StayAILocalization = {
-    // =========================================================================
-    // State
-    // =========================================================================
-
     observer: null,
     debounceTimer: null,
     debounceStart: null,
@@ -109,9 +106,11 @@
     pendingRun: false,
     routeHookInstalled: false,
     compiledPatterns: null,
+    changeLog: [],
 
     stats: {
       runs: 0,
+      runsWithChanges: 0,
       textNodesChanged: 0,
       attributesChanged: 0,
       splitCurrencyNodesChanged: 0,
@@ -121,16 +120,14 @@
       runtimeTranslationsRemoved: 0,
     },
 
-    // =========================================================================
-    // Config
-    // =========================================================================
-
     config: {
       root: document.body,
       debounceMs: 50,
       maxWaitMs: 1000,
       debug: true,
-      logLimit: 100,
+      logToConsole: true,
+      logRunSummary: true,
+      logLimit: 150,
       attributes: ["placeholder", "title", "aria-label", "alt"],
       ignoredTags: new Set([
         "SCRIPT",
@@ -147,10 +144,6 @@
 
     translationGroups: TRANSLATION_GROUPS,
     translations: createTranslationMap(TRANSLATION_GROUPS),
-
-    // =========================================================================
-    // Date and time config
-    // =========================================================================
 
     monthTranslations: new Map([
       ["Jan", "Jan."],
@@ -218,10 +211,6 @@
       style: "currency",
       currency: "EUR",
     }),
-
-    // =========================================================================
-    // Runtime translation API
-    // =========================================================================
 
     invalidateTranslationCache() {
       this.compiledPatterns = null;
@@ -301,54 +290,6 @@
       return this.translations.get(String(source));
     },
 
-    // =========================================================================
-    // Generic helpers
-    // =========================================================================
-
-    changeLog: [],
-
-    logChange(type, before, after, meta = {}) {
-      if (!this.config.debug) return;
-
-      const entry = {
-        type,
-        before,
-        after,
-        ...meta,
-        timestamp: new Date().toISOString(),
-      };
-
-      this.changeLog.push(entry);
-
-      if (this.changeLog.length > this.config.logLimit) {
-        this.changeLog.shift();
-      }
-
-      console.info(`[StayAI] ${type}`, {
-        before,
-        after,
-        ...meta,
-      });
-    },
-
-    showChangeLog() {
-      console.table(this.changeLog);
-      return this.changeLog;
-    },
-
-    clearChangeLog() {
-      this.changeLog = [];
-      console.log("[StayAI] Change log cleared.");
-      return [];
-    },
-
-    setDebug(enabled) {
-      this.config.debug = Boolean(enabled);
-      console.log(
-        `[StayAI] Debug logging ${this.config.debug ? "enabled" : "disabled"}.`,
-      );
-      return this.report();
-    },
     shouldIgnoreElement(element) {
       if (!element) return true;
       if (this.config.ignoredTags.has(element.tagName)) return true;
@@ -373,8 +314,6 @@
     makeTranslationPattern(source) {
       const escaped = this.escapeRegExp(source);
 
-      // Word guards only for purely alphabetic keys.
-      // This prevents replacing fragments inside longer words.
       if (/^[A-Za-z]+$/.test(source)) {
         return new RegExp(`\\b${escaped}\\b`, "g");
       }
@@ -418,6 +357,105 @@
       return true;
     },
 
+    getElementPath(element) {
+      if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
+
+      const parts = [];
+      let current = element;
+
+      while (
+        current &&
+        current.nodeType === Node.ELEMENT_NODE &&
+        parts.length < 5
+      ) {
+        let part = current.tagName.toLowerCase();
+
+        if (current.id) {
+          part += `#${current.id}`;
+          parts.unshift(part);
+          break;
+        }
+
+        if (current.classList?.length) {
+          part += `.${[...current.classList].slice(0, 2).join(".")}`;
+        }
+
+        parts.unshift(part);
+        current = current.parentElement;
+      }
+
+      return parts.join(" > ");
+    },
+
+    logChange(type, before, after, meta = {}) {
+      if (!this.config.debug) return;
+
+      const entry = {
+        index: this.changeLog.length + 1,
+        type,
+        before,
+        after,
+        ...meta,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.changeLog.push(entry);
+
+      if (this.changeLog.length > this.config.logLimit) {
+        this.changeLog.shift();
+      }
+
+      if (this.config.logToConsole) {
+        console.info(`[StayAI] Changed ${type}`, { before, after, ...meta });
+      }
+    },
+
+    logRunSummary(runNumber, changes, root) {
+      if (!this.config.debug || !this.config.logRunSummary || !changes) return;
+
+      const rootLabel =
+        root?.nodeType === Node.ELEMENT_NODE
+          ? this.getElementPath(root)
+          : root?.nodeType === Node.TEXT_NODE
+            ? `text node inside ${this.getElementPath(root.parentElement)}`
+            : "unknown root";
+
+      console.info(`[StayAI] Run ${runNumber} completed`, {
+        changes,
+        root: rootLabel,
+        stats: this.report(),
+      });
+    },
+
+    showChangeLog() {
+      console.table(this.changeLog);
+      return [...this.changeLog];
+    },
+
+    clearChangeLog() {
+      this.changeLog = [];
+      console.log("[StayAI] Change log cleared.");
+      return [];
+    },
+
+    setDebug(enabled) {
+      this.config.debug = Boolean(enabled);
+      console.log(
+        `[StayAI] Debug logging ${this.config.debug ? "enabled" : "disabled"}.`,
+      );
+      return this.report();
+    },
+
+    setConsoleLogging(enabled) {
+      this.config.logToConsole = Boolean(enabled);
+      console.log(
+        `[StayAI] Per-change console logging ${
+          this.config.logToConsole ? "enabled" : "disabled"
+        }.`,
+      );
+      return this.report();
+    },
+
     markSplitPhraseChange(changed, before = null, after = null, meta = {}) {
       if (!changed) return;
 
@@ -427,16 +465,9 @@
       this.logChange("split-phrase", before, after, meta);
     },
 
-    // =========================================================================
-    // Localization pipeline
-    // =========================================================================
-
     applyDynamicPhraseRules(value) {
       let result = value;
 
-      // Safe for non-split single text nodes.
-      // Split billing phrases are handled separately in processSplitPhraseElement
-      // so dynamic number nodes can remain React-controlled.
       result = result.replace(
         /\bYou have selected\s+(\d+)\s+of\s+(\d+)\s+flavors\b/gi,
         "Du hast $1 von $2 Geschmacksrichtungen ausgewählt",
@@ -468,7 +499,6 @@
     formatDateFragments(value) {
       let result = value;
 
-      // "5 Jan" or "5 January" becomes "5. Jan." or "5. Januar"
       result = result.replace(
         /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/g,
         (match, day, month) => {
@@ -477,7 +507,6 @@
         },
       );
 
-      // "January 5, 2024" becomes "05.01.2024"
       result = result.replace(
         /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})\b/g,
         (match, month, day, year) => {
@@ -486,7 +515,6 @@
         },
       );
 
-      // "Monday, 05.01.2024" becomes "Montag, 05.01.2024"
       result = result.replace(
         /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*(\d{1,2}\.\d{1,2}\.\d{4})\b/g,
         (match, weekday, datePart) => {
@@ -501,7 +529,6 @@
     formatTimeFragments(value) {
       let result = value;
 
-      // "2:30 PM" or "02:30 PM" becomes "14:30 Uhr"
       result = result.replace(
         /\b(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)\b/gi,
         (match, hour, minute, period) => {
@@ -515,7 +542,6 @@
         },
       );
 
-      // "2 PM" becomes "14:00 Uhr"
       result = result.replace(
         /\b(0?[1-9]|1[0-2])\s*(AM|PM)\b/gi,
         (match, hour, period) => {
@@ -546,18 +572,6 @@
     },
 
     formatCurrencyFragments(value) {
-      /**
-       * Converts English EUR formats to German EUR format:
-       * - €89.92 becomes 89,92 €
-       * - 89.92 € becomes 89,92 €
-       * - EUR 89.92 becomes 89,92 €
-       * - 89.92 EUR becomes 89,92 €
-       *
-       * Important:
-       * The amount pattern only targets English number formats.
-       * This avoids re-processing already converted values like "89,92 €".
-       */
-
       const amountPattern =
         "-?(?<![,.\\d])(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d{1,2})?|\\d+\\.\\d{1,2}|\\d+)";
 
@@ -584,10 +598,6 @@
       return result;
     },
 
-    // =========================================================================
-    // DOM processing
-    // =========================================================================
-
     processTextNode(node) {
       if (this.shouldIgnoreElement(node.parentElement)) return;
 
@@ -601,6 +611,7 @@
 
         this.logChange("text-node", original, localized, {
           parentTag: node.parentElement?.tagName,
+          path: this.getElementPath(node.parentElement),
         });
       }
     },
@@ -622,6 +633,7 @@
           this.logChange("attribute", original, localized, {
             attribute: attr,
             tag: element.tagName,
+            path: this.getElementPath(element),
           });
         }
       }
@@ -633,9 +645,6 @@
       const textNodes = this.getDirectTextNodes(element);
       if (textNodes.length < 2) return;
 
-      // Very conservative:
-      // Do not rewrite containers that have nested elements.
-      // This prevents destroying larger component structures.
       if (this.hasNestedElementChildren(element)) return;
 
       const normalizedValues = textNodes.map((node) =>
@@ -645,26 +654,13 @@
       const fullText = this.normalizeWhitespace(element.textContent);
       if (!fullText) return;
 
-      // ----------------------------------------------------------------------
-      // Billing frequency split nodes
-      //
-      // Example before:
-      // <p>
-      //   "Billed every "
-      //   "4"
-      //   " Wochen"
-      // </p>
-      //
-      // Example after:
-      // <p>
-      //   "Alle "
-      //   "4"
-      //   " Wochen abgerechnet"
-      // </p>
-      //
-      // Important:
-      // The number node is never replaced, so React can still update 4 to 8.
-      // ----------------------------------------------------------------------
+      const splitPhraseMeta = () => ({
+        tag: element.tagName,
+        path: this.getElementPath(element),
+      });
+
+      const singularOrPlural = (count, singular, plural) =>
+        Number(count) === 1 ? singular : plural;
 
       const billingWeeksMatch = fullText.match(
         /^(Billed every|Alle)\s+(\d+)\s+(weeks?|Wochen)(?:\s+abgerechnet)?$/i,
@@ -702,10 +698,15 @@
         changed =
           this.setNodeValueIfChanged(
             textNodes[unitIndex],
-            " Wochen abgerechnet",
+            ` ${singularOrPlural(billingWeeksMatch[2], "Woche", "Wochen")} abgerechnet`,
           ) || changed;
 
-        this.markSplitPhraseChange(changed);
+        this.markSplitPhraseChange(
+          changed,
+          fullText,
+          this.normalizeWhitespace(element.textContent),
+          splitPhraseMeta(),
+        );
         return;
       }
 
@@ -745,10 +746,15 @@
         changed =
           this.setNodeValueIfChanged(
             textNodes[unitIndex],
-            " Tage abgerechnet",
+            ` ${singularOrPlural(billingDaysMatch[2], "Tag", "Tage")} abgerechnet`,
           ) || changed;
 
-        this.markSplitPhraseChange(changed);
+        this.markSplitPhraseChange(
+          changed,
+          fullText,
+          this.normalizeWhitespace(element.textContent),
+          splitPhraseMeta(),
+        );
         return;
       }
 
@@ -788,21 +794,17 @@
         changed =
           this.setNodeValueIfChanged(
             textNodes[unitIndex],
-            " Monate abgerechnet",
+            ` ${singularOrPlural(billingMonthsMatch[2], "Monat", "Monate")} abgerechnet`,
           ) || changed;
 
-        this.markSplitPhraseChange(changed);
+        this.markSplitPhraseChange(
+          changed,
+          fullText,
+          this.normalizeWhitespace(element.textContent),
+          splitPhraseMeta(),
+        );
         return;
       }
-
-      // ----------------------------------------------------------------------
-      // Selected flavors split nodes
-      //
-      // Example:
-      // "You have selected " + "2" + " of " + "4" + " flavors"
-      //
-      // Number nodes are kept intact.
-      // ----------------------------------------------------------------------
 
       const selectedFlavorsMatch = fullText.match(
         /^(You have selected|Du hast)\s+(\d+)\s+(of|von)\s+(\d+)\s+(flavors|Geschmacksrichtungen)(?:\s+ausgewählt)?$/i,
@@ -836,7 +838,7 @@
             changed =
               this.setNodeValueIfChanged(
                 node,
-                " Geschmacksrichtungen ausgewählt",
+                ` ${singularOrPlural(selectedFlavorsMatch[4], "Geschmacksrichtung", "Geschmacksrichtungen")} ausgewählt`,
               ) || changed;
             return;
           }
@@ -847,7 +849,12 @@
           }
         });
 
-        this.markSplitPhraseChange(changed);
+        this.markSplitPhraseChange(
+          changed,
+          fullText,
+          this.normalizeWhitespace(element.textContent),
+          splitPhraseMeta(),
+        );
       }
     },
 
@@ -878,7 +885,7 @@
         const formatted = this.formatEuroAmount(rawAmount);
         if (!formatted) return false;
 
-        const before = textNodes[amountIndex].nodeValue;
+        const before = textNodes.map((node) => node.nodeValue).join("");
 
         for (const index of nodesToClear) {
           if (textNodes[index]) {
@@ -894,16 +901,12 @@
 
         this.logChange("split-currency", before, formatted, {
           tag: element.tagName,
+          path: this.getElementPath(element),
         });
 
         return true;
       };
 
-      // Case after first conversion:
-      // <span data-stayai-split-currency="true"> "" "269.76" </span>
-      //
-      // StayAI updates only the amount node.
-      // The marker lets us format it again without needing the euro node.
       if (element.getAttribute("data-stayai-split-currency") === "true") {
         const amountIndex = values.findIndex((value) =>
           englishAmountPattern.test(value),
@@ -916,8 +919,6 @@
         return;
       }
 
-      // Initial React structure:
-      // <span> "€" "89.92" </span>
       const euroIndex = values.findIndex((value) => value === "€");
 
       if (euroIndex !== -1) {
@@ -933,8 +934,6 @@
         return;
       }
 
-      // Alternative structure:
-      // <span> "EUR" "89.92" </span>
       const eurIndex = values.findIndex((value) => value === "EUR");
 
       if (eurIndex !== -1) {
@@ -1003,10 +1002,6 @@
       }
     },
 
-    // =========================================================================
-    // Run control
-    // =========================================================================
-
     run(root = this.config.root) {
       if (this.isRunning) {
         this.pendingRun = true;
@@ -1015,11 +1010,22 @@
 
       this.isRunning = true;
 
+      const totalBefore = this.stats.totalChanges;
+      let runNumber = this.stats.runs + 1;
+
       try {
         this.stats.runs += 1;
+        runNumber = this.stats.runs;
         this.walk(root);
       } finally {
         this.isRunning = false;
+      }
+
+      const changesInRun = this.stats.totalChanges - totalBefore;
+
+      if (changesInRun > 0) {
+        this.stats.runsWithChanges += 1;
+        this.logRunSummary(runNumber, changesInRun, root);
       }
 
       if (this.pendingRun) {
@@ -1050,10 +1056,6 @@
         this.run(this.config.root);
       }, this.config.debounceMs);
     },
-
-    // =========================================================================
-    // MutationObserver
-    // =========================================================================
 
     observe() {
       if (this.observer) return;
@@ -1116,10 +1118,6 @@
       console.log("[StayAI] MutationObserver active.");
     },
 
-    // =========================================================================
-    // SPA route handling
-    // =========================================================================
-
     installRouteHook() {
       if (this.routeHookInstalled) return;
 
@@ -1152,10 +1150,6 @@
       console.log("[StayAI] SPA route hook active.");
     },
 
-    // =========================================================================
-    // Lifecycle
-    // =========================================================================
-
     stop() {
       if (this.observer) {
         this.observer.disconnect();
@@ -1187,6 +1181,7 @@
     resetStats() {
       this.stats = {
         runs: 0,
+        runsWithChanges: 0,
         textNodesChanged: 0,
         attributesChanged: 0,
         splitCurrencyNodesChanged: 0,
@@ -1195,14 +1190,11 @@
         runtimeTranslationsAdded: 0,
         runtimeTranslationsRemoved: 0,
       };
+      this.clearChangeLog();
 
       return this.report();
     },
   };
-
-  // ==========================================================================
-  // Bootstrap
-  // ==========================================================================
 
   window.StayAILocalization = StayAILocalization;
 
@@ -1228,7 +1220,7 @@
   );
 
   console.log(
-    "[StayAI] Runtime API available: addTranslation, addTranslations, removeTranslation, listTranslations, run, stop, restart, report.",
+    "[StayAI] Runtime API available: addTranslation, addTranslations, removeTranslation, listTranslations, showChangeLog, clearChangeLog, setDebug, setConsoleLogging, run, stop, restart, report.",
   );
 
   return StayAILocalization.report();
