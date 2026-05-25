@@ -129,6 +129,8 @@
       root: document.body,
       debounceMs: 50,
       maxWaitMs: 1000,
+      debug: true,
+      logLimit: 100,
       attributes: ["placeholder", "title", "aria-label", "alt"],
       ignoredTags: new Set([
         "SCRIPT",
@@ -303,6 +305,50 @@
     // Generic helpers
     // =========================================================================
 
+    changeLog: [],
+
+    logChange(type, before, after, meta = {}) {
+      if (!this.config.debug) return;
+
+      const entry = {
+        type,
+        before,
+        after,
+        ...meta,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.changeLog.push(entry);
+
+      if (this.changeLog.length > this.config.logLimit) {
+        this.changeLog.shift();
+      }
+
+      console.info(`[StayAI] ${type}`, {
+        before,
+        after,
+        ...meta,
+      });
+    },
+
+    showChangeLog() {
+      console.table(this.changeLog);
+      return this.changeLog;
+    },
+
+    clearChangeLog() {
+      this.changeLog = [];
+      console.log("[StayAI] Change log cleared.");
+      return [];
+    },
+
+    setDebug(enabled) {
+      this.config.debug = Boolean(enabled);
+      console.log(
+        `[StayAI] Debug logging ${this.config.debug ? "enabled" : "disabled"}.`,
+      );
+      return this.report();
+    },
     shouldIgnoreElement(element) {
       if (!element) return true;
       if (this.config.ignoredTags.has(element.tagName)) return true;
@@ -372,11 +418,13 @@
       return true;
     },
 
-    markSplitPhraseChange(changed) {
+    markSplitPhraseChange(changed, before = null, after = null, meta = {}) {
       if (!changed) return;
 
       this.stats.splitPhraseElementsChanged += 1;
       this.stats.totalChanges += 1;
+
+      this.logChange("split-phrase", before, after, meta);
     },
 
     // =========================================================================
@@ -550,6 +598,10 @@
         node.nodeValue = localized;
         this.stats.textNodesChanged += 1;
         this.stats.totalChanges += 1;
+
+        this.logChange("text-node", original, localized, {
+          parentTag: node.parentElement?.tagName,
+        });
       }
     },
 
@@ -566,6 +618,11 @@
           element.setAttribute(attr, localized);
           this.stats.attributesChanged += 1;
           this.stats.totalChanges += 1;
+
+          this.logChange("attribute", original, localized, {
+            attribute: attr,
+            tag: element.tagName,
+          });
         }
       }
     },
@@ -821,6 +878,8 @@
         const formatted = this.formatEuroAmount(rawAmount);
         if (!formatted) return false;
 
+        const before = textNodes[amountIndex].nodeValue;
+
         for (const index of nodesToClear) {
           if (textNodes[index]) {
             textNodes[index].nodeValue = "";
@@ -832,6 +891,10 @@
 
         this.stats.splitCurrencyNodesChanged += 1;
         this.stats.totalChanges += 1;
+
+        this.logChange("split-currency", before, formatted, {
+          tag: element.tagName,
+        });
 
         return true;
       };
