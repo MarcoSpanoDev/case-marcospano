@@ -1,6 +1,14 @@
 (() => {
   "use strict";
 
+  const GLOBAL_KEY = "__StayAILocalizationOriginalHistory__";
+
+  if (!window[GLOBAL_KEY]) {
+    window[GLOBAL_KEY] = {
+      pushState: history.pushState,
+      replaceState: history.replaceState,
+    };
+  }
   // Console demos often run the snippet more than once. Stop an older copy first.
   if (window.StayAILocalization?.stop) {
     window.StayAILocalization.stop();
@@ -1151,6 +1159,12 @@
     },
 
     stop() {
+      if (window.__StayAILocalizationOriginalHistory__) {
+        history.pushState =
+          window.__StayAILocalizationOriginalHistory__.pushState;
+        history.replaceState =
+          window.__StayAILocalizationOriginalHistory__.replaceState;
+      }
       if (this.observer) {
         this.observer.disconnect();
         this.observer = null;
