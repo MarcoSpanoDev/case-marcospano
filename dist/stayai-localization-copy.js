@@ -113,6 +113,7 @@
     isRunning: false,
     pendingRun: false,
     routeHookInstalled: false,
+    routeHandler: null,
     compiledPatterns: null,
     changeLog: [],
 
@@ -129,10 +130,10 @@
     },
 
     config: {
-      root: document.body,
+      root: document.body || document.documentElement,
       debounceMs: 50,
       maxWaitMs: 1000,
-      debug: true,
+      debug: false,
       logToConsole: true,
       logRunSummary: true,
       logLimit: 150,
@@ -479,6 +480,23 @@
       result = result.replace(
         /\bYou have selected\s+(\d+)\s+of\s+(\d+)\s+flavors\b/gi,
         "Du hast $1 von $2 Geschmacksrichtungen ausgewählt",
+      );
+
+      result = result.replace(
+        /\bBilled every\s+(\d+)\s+(weeks?|days?|months?)\b/gi,
+        (match, count, unit) => {
+          const normalizedUnit = unit.toLowerCase();
+
+          if (normalizedUnit.startsWith("week")) {
+            return `Alle ${count} ${Number(count) === 1 ? "Woche" : "Wochen"} abgerechnet`;
+          }
+
+          if (normalizedUnit.startsWith("day")) {
+            return `Alle ${count} ${Number(count) === 1 ? "Tag" : "Tage"} abgerechnet`;
+          }
+
+          return `Alle ${count} ${Number(count) === 1 ? "Monat" : "Monate"} abgerechnet`;
+        },
       );
 
       return result;
@@ -1066,7 +1084,7 @@
     },
 
     observe() {
-      if (this.observer) return;
+      if (this.observer || !this.config.root) return;
 
       this.observer = new MutationObserver((mutations) => {
         let needsFollowUpRun = false;
@@ -1076,12 +1094,8 @@
             for (const node of mutation.addedNodes) {
               this.run(node);
 
-              if (node.nodeType === Node.ELEMENT_NODE) {
-                this.processElement(node);
-
-                if (node.parentElement) {
-                  this.processElement(node.parentElement);
-                }
+              if (node.nodeType === Node.ELEMENT_NODE && node.parentElement) {
+                this.processElement(node.parentElement);
               }
             }
 
@@ -1129,7 +1143,9 @@
     installRouteHook() {
       if (this.routeHookInstalled) return;
 
-      const rerunAfterRouteChange = () => {
+      const originalHistory = window[GLOBAL_KEY];
+
+      this.routeHandler = () => {
         requestAnimationFrame(() => {
           this.run(this.config.root);
         });
@@ -1142,16 +1158,16 @@
       const wrapHistoryMethod = (original) => {
         return (...args) => {
           const result = original.apply(history, args);
-          rerunAfterRouteChange();
+          this.routeHandler();
           return result;
         };
       };
 
-      history.pushState = wrapHistoryMethod(history.pushState);
-      history.replaceState = wrapHistoryMethod(history.replaceState);
+      history.pushState = wrapHistoryMethod(originalHistory.pushState);
+      history.replaceState = wrapHistoryMethod(originalHistory.replaceState);
 
-      window.addEventListener("popstate", rerunAfterRouteChange);
-      window.addEventListener("hashchange", rerunAfterRouteChange);
+      window.addEventListener("popstate", this.routeHandler);
+      window.addEventListener("hashchange", this.routeHandler);
 
       this.routeHookInstalled = true;
 
@@ -1159,12 +1175,21 @@
     },
 
     stop() {
-      if (window.__StayAILocalizationOriginalHistory__) {
-        history.pushState =
-          window.__StayAILocalizationOriginalHistory__.pushState;
-        history.replaceState =
-          window.__StayAILocalizationOriginalHistory__.replaceState;
+      if (this.routeHandler) {
+        window.removeEventListener("popstate", this.routeHandler);
+        window.removeEventListener("hashchange", this.routeHandler);
+        this.routeHandler = null;
       }
+
+      if (window[GLOBAL_KEY]) {
+        history.pushState = window[GLOBAL_KEY].pushState;
+        history.replaceState = window[GLOBAL_KEY].replaceState;
+      }
+
+      this.routeHookInstalled = false;
+      this.pendingRun = false;
+      this.isRunning = false;
+
       if (this.observer) {
         this.observer.disconnect();
         this.observer = null;
@@ -1174,7 +1199,7 @@
       this.debounceTimer = null;
       this.debounceStart = null;
 
-      console.log("[StayAI] MutationObserver stopped.");
+      console.log("[StayAI] Localization stopped.");
       return this.report();
     },
 
@@ -1213,10 +1238,10 @@
   window.StayAILocalization = StayAILocalization;
 
   const antiFlicker = document.createElement("style");
-  antiFlicker.textContent = "body{visibility:hidden!important}";
-  document.head.appendChild(antiFlicker);
 
   try {
+    antiFlicker.textContent = "body{visibility:hidden!important}";
+    document.head?.appendChild(antiFlicker);
     StayAILocalization.run();
   } catch (error) {
     console.error("[StayAI] Initial localization failed.", error);
