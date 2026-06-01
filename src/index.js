@@ -1,3 +1,11 @@
+/**
+ * Entry point for the StayAI localization injection.
+ *
+ * Creates the main StayAILocalization object, combines all module APIs,
+ * exposes the runtime API on window.StayAILocalization and starts the initial
+ * localization run, MutationObserver and SPA route hook.
+ */
+
 import { config } from "./config.js";
 import { createDebugApi } from "./core/debug.js";
 import { createDomApi } from "./core/dom.js";

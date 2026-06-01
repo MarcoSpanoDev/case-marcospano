@@ -1,4 +1,9 @@
-// src/formatters/times.js
+/**
+ * Time formatter for English AM/PM time fragments.
+ *
+ * Converts 12-hour time values into German 24-hour notation,
+ * for example "2:30 PM" to "14:30 Uhr".
+ */
 
 export function formatTimeFragments(value) {
   let result = value;

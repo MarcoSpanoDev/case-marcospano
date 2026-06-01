@@ -1,5 +1,9 @@
-// src/formatters/date.js
-
+/**
+ * Date formatter for English date fragments.
+ *
+ * Converts common English month and weekday formats into German display
+ * formats, for example "May 14, 2026" to "14.05.2026".
+ */
 const monthTranslations = new Map([
   ["Jan", "Jan."],
   ["January", "Januar"],

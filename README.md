@@ -1,175 +1,153 @@
-# StayAI Localization Script
+# StayAI Localization Injection
+
+Kleines JavaScript-Projekt zur nachträglichen Lokalisierung des StayAI Customer Portals für deutsche Nutzer.
 
 ## Kurzbeschreibung
 
-Dieses Script korrigiert clientseitig englische StayAI-Oberflächentexte sowie Datums-, Uhrzeit- und Währungsformate in ein deutsches Format. Es wurde für den Einsatz über ein vorhandenes Custom-JS-Feld entwickelt und läuft vollständig im Browser.
+Das Script übersetzt fehlende englische UI-Texte, formatiert Datumswerte, Uhrzeiten und EUR-Beträge in deutsche Schreibweise und reagiert auf dynamisch nachgeladene Inhalte innerhalb der App.
 
-## Was löst das Script?
-
-Das Script behebt Lokalisierungsprobleme in StayAI, bei denen Inhalte teilweise oder vollständig auf Englisch angezeigt werden. Zusätzlich normalisiert es Datum, Uhrzeit und EUR-Währungsangaben für die Ziel-Locale `de-DE`.
-
-Konkret werden unter anderem folgende Fälle behandelt:
-
-- fehlende englische Texte werden ersetzt
-- Datumsangaben werden deutsch formatiert
-- Uhrzeiten werden in ein deutsches 24-Stunden-Format gebracht
-- EUR-Währungsbeträge werden im deutschen Format angezeigt
-- dynamisch nachgeladene Inhalte werden nachträglich korrigiert
-- Seitenwechsel innerhalb der App werden berücksichtigt
-
-## Kontext
-
-StayAI stellt an der betroffenen Stelle keine direkte Möglichkeit bereit, die Übersetzungen, Datumsformate, Uhrzeitformate oder Währungsdarstellung vollständig über App-Code, Dokumentation oder eine öffentliche API anzupassen.
-
-Deshalb wurde eine clientseitige Lösung über JavaScript Injection gewählt. Das Script wird über ein vorhandenes Custom-JS-Feld eingebunden und korrigiert die relevanten DOM-Inhalte nach dem Rendern.
-
-## Ansatz
-
-Die Lösung arbeitet DOM-basiert und vermeidet bewusst globale `innerHTML`-Manipulationen.
-
-Stattdessen werden gezielt verarbeitet:
-
-- Text Nodes
-- relevante Attribute wie `placeholder`, `title`, `aria-label` und `alt`
-- dynamisch hinzugefügte DOM-Knoten
-- gesplittete Währungsdarstellungen innerhalb mehrerer Text Nodes
-
-Dadurch bleibt die Lösung kontrollierter und reduziert das Risiko, Event Listener, Komponentenstruktur oder HTML-Markup unnötig zu beschädigen.
+Die Lösung ist als JavaScript Injection gedacht, weil kein direkter Zugriff auf den App-Code, die StayAI-Templates oder eine offizielle Übersetzungs-API vorausgesetzt wird.
 
 ## Features
 
-- Übersetzung definierter englischer UI-Texte
-- Unterstützung für Text Nodes und relevante Attribute
-- deutsche Datumsformate
-- deutsche Uhrzeitformate
-- deutsche EUR-Währungsformatierung
-- Erkennung von gesplitteten Währungswerten im DOM
-- `MutationObserver` für dynamisch nachgeladene Inhalte
-- zusätzliche Behandlung von SPA-Routenwechseln
-- mehrfach ausführbar und idempotent
-- Debug-Statistiken über `StayAILocalization.report()`
-- erweiterbare Translation Map
-- Schutz vor Verarbeitung irrelevanter Tags wie `SCRIPT`, `STYLE`, `TEXTAREA`, `CODE` und `PRE`
+- Übersetzung zentral definierter UI-Texte
+- Deutsche Datumsformate, z. B. `May 14, 2026` zu `14.05.2026`
+- Deutsche Uhrzeitformate, z. B. `2:30 PM` zu `14:30 Uhr`
+- Deutsche EUR-Währungsformatierung, z. B. `€89.92` zu `89,92 €`
+- Unterstützung für dynamisch gerenderte Inhalte durch `MutationObserver`
+- Unterstützung für SPA-Seitenwechsel durch History- und Route-Hooks
+- Idempotente Verarbeitung, damit Werte nicht mehrfach falsch formatiert werden
+- Runtime API zum Testen und Debuggen über die Browser Console
 
-## Nutzung / Testen
+## Projektstruktur
 
-### Variante 1: Browser Console
+```txt
+src/
+  index.js
+  config.js
+  translation.js
+  formatters/
+    date.js
+    times.js
+    currency.js
+  core/
+    debug.js
+    dom.js
+    localization.js
+    observer.js
+    routeHook.js
 
-1. Testseite öffnen
-2. Script in die Browser Console einfügen
-3. Ausführen
-4. Sichtbare Inhalte prüfen
-
-### Variante 2: Dateiinhalt verwenden
-
-Alternativ kann der Inhalt aus folgender Datei kopiert und im Custom-JS-Feld eingefügt werden:
-
-```text
-src/stayai-localization.js
+dist/
+  stayai-localization.js
 ```
 
-## Verfügbare Befehle
+## Nutzung
 
-Nach dem Laden steht das Script global über `window.StayAILocalization` zur Verfügung.
+Die modularen Dateien in `src/` sind für Entwicklung und Wartung gedacht.
 
-```js
-StayAILocalization.run();
+Für die Nutzung in der Browser Console, in einem Custom-JS-Feld oder über Tampermonkey wird daraus eine einzelne Datei gebaut:
+
+```bash
+npm install
+npm run build
 ```
 
-Führt die Lokalisierung manuell erneut aus.
+Danach kann der Inhalt dieser Datei verwendet werden:
 
-```js
-StayAILocalization.observe();
+```txt
+dist/stayai-localization.js
 ```
 
-Startet den `MutationObserver`, falls er noch nicht aktiv ist.
+## Nutzung mit Tampermonkey
+
+Für lokale Tests kann das Script über Tampermonkey automatisch auf der Case-Study-Seite ausgeführt werden.
+
+Tampermonkey:
+[https://www.tampermonkey.net/](https://www.tampermonkey.net/)
+
+Dazu ein neues Userscript erstellen, diesen Header einfügen und darunter den Inhalt aus `dist/stayai-localization.js` setzen:
 
 ```js
-StayAILocalization.stop();
+// ==UserScript==
+// @name         StayAI Localization Demo
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @description  Injects the StayAI localization layer for the Metaflow X case study demo.
+// @match        https://metaflow-x-casestudy.lovable.app/*
+// @match        http://metaflow-x-casestudy.lovable.app/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
 ```
 
-Stoppt den aktiven `MutationObserver`.
+In Chrome muss eventuell zusätzlich aktiviert werden:
+
+```txt
+chrome://extensions → Tampermonkey → Details → Allow user scripts
+```
+
+Nach dem Refresh kann in der Console geprüft werden, ob die Injection aktiv ist:
 
 ```js
+window.StayAILocalization;
 StayAILocalization.report();
 ```
 
-Gibt Debug-Statistiken zurück, zum Beispiel Anzahl der Runs, geänderter Text Nodes, Attribute und Gesamtänderungen.
+Tampermonkey ist hier nur für lokale Tests gedacht. In einer echten Integration würde derselbe Bundle-Code über Custom JS, Theme Snippet, App Embed oder Tag Manager geladen werden.
 
-## Dateistruktur
+## Verfügbare Console API
 
-```text
-src/
-  stayai-localization.js
-
-README.md
-```
-
-Optional:
-
-```text
-presentation-notes.md
-test-cases.md
-```
-
-### Übersetzungen zur Laufzeit ergänzen
-
-Neue Übersetzungen können während des Testens direkt über die Browser Console ergänzt werden.
+Nach dem Ausführen ist die API über `window.StayAILocalization` verfügbar:
 
 ```js
-StayAILocalization.addTranslation("Billed every", "Abgerechnet alle");
+StayAILocalization.run();
+StayAILocalization.observe();
+StayAILocalization.stop();
+StayAILocalization.restart();
+StayAILocalization.report();
+StayAILocalization.listTranslations();
+StayAILocalization.addTranslation("Source", "Ziel");
+StayAILocalization.setDebug(true);
+StayAILocalization.showChangeLog();
+```
+
+## Ansatz
+
+Das Script arbeitet gezielt auf Text-Nodes und relevanten Attributen wie `placeholder`, `title`, `aria-label` und `alt`.
+
+Es vermeidet globale `innerHTML`-Manipulationen, damit React-gerenderte Inhalte nicht unnötig zerstört oder neu aufgebaut werden. Dynamische Inhalte werden über einen `MutationObserver` verarbeitet. Bei SPA-Navigationen werden zusätzliche Runs nach dem Route-Wechsel ausgeführt, damit neu gerenderte Inhalte ebenfalls lokalisiert werden.
+
+## Build
+
+Beispiel mit `esbuild`:
+
+```json
+{
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=iife --outfile=dist/stayai-localization.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
 ```
 
 ## Getroffene Annahmen
 
-- Ziel-Locale ist `de-DE`
-- Währung ist `EUR`
-- Lösung läuft clientseitig über JavaScript Injection
-- StayAI-Inhalte können dynamisch gerendert oder nachgeladen werden
-- die Translation Map kann bei Bedarf erweitert werden
-- kein direkter Zugriff auf StayAI-App-Code, Dokumentation oder API ist verfügbar
+- Die App stellt kein direkt nutzbares Übersetzungsinterface bereit.
+- Die Injection läuft im Browser-Kontext nach dem Laden der Seite.
+- Neue Übersetzungen können zentral in `translation.js` ergänzt werden.
+- Die finale Nutzung erfolgt über eine gebündelte Single-File-Version.
 
-## Bekannte Grenzen / Trade-offs
+## Status
 
-- DOM-basierte Lösungen sind fragiler als eine echte i18n-Integration im App-Code
-- Änderungen am StayAI-Markup können Anpassungen am Script erforderlich machen
-- automatische Übersetzung unbekannter Texte ist bewusst nicht enthalten
-- Regex-basierte Datumserkennung deckt definierte Formate ab, aber nicht jedes mögliche Datumsformat
-- neue oder geänderte englische UI-Texte müssen manuell in der Translation Map ergänzt werden
+Die aktuelle Version ist als funktionaler Proof of Concept ausgelegt und für die Case Study testbar. Die modulare Struktur erleichtert spätere Erweiterungen, während der Build weiterhin eine einzelne console-kompatible Datei erzeugt.
 
-## Testfälle
+## KI Nutzung
 
-Folgende Fälle sollten beim Testen geprüft werden:
+Wie in der Aufgabenstellung erlaubt, wurde ChatGPT unterstützend für Strukturierung, Code-Review, Debugging und Formulierungen verwendet.
 
-- sichtbare englische Texte werden ersetzt
-- `placeholder`, `aria-label`, `title` und `alt` werden ersetzt
-- Datumsangaben werden deutsch formatiert
-- Uhrzeiten werden im 24-Stunden-Format angezeigt
-- Währungsbeträge werden als deutsches EUR-Format angezeigt
-- dynamisch eingefügte Inhalte werden nachträglich korrigiert
-- Seitenwechsel innerhalb der App behalten die Lokalisierung bei
-- mehrfaches Ausführen erzeugt keine fehlerhaften Dopplungen
-- bereits korrekt formatierte EUR-Beträge werden nicht erneut kaputt formatiert
+Der geteilte ChatGPT-Link zur Einsicht der KI-Nutzung ist hier verfügbar:
+[ChatGPT-Projekt / Verlauf](https://chatgpt.com/g/g-p-6a09eb7d4e50819194fe6b73d071cbb4-case-study-meta/project)
 
-## KI-Nutzung
-
-KI wurde als Sparringspartner für Struktur, Edge Cases und Code Review genutzt.
-
-Die finale Lösung wurde verstanden, getestet und angepasst. Insbesondere wurden Fälle wie dynamisch gerenderte Inhalte, SPA-Seitenwechsel und fehlerhafte Mehrfachformatierung von Währungsbeträgen berücksichtigt.
-
-Links:
-https://claude.ai/share/67708d8d-24f2-4427-bc93-469641128d1d
-https://chatgpt.com/g/g-p-6a09eb7d4e50819194fe6b73d071cbb4-case-study-meta/project
-
-## Mögliche Weiterentwicklung
-
-- Translation Map aus externer JSON-Datei laden
-- zusätzliche Testfälle dokumentieren
-- visuelle Regression Tests ergänzen
-- Monitoring oder Logging für nicht übersetzte Texte einbauen
-- robustere Selektoren verwenden, falls StayAI stabile Attribute bereitstellt
-- automatisierte Tests für Datums-, Uhrzeit- und Währungsformatierung ergänzen
-
-```
-
-```
+Die finale Implementierung wurde eigenständig geprüft und im Browser getestet.

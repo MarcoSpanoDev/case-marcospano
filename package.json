@@ -1,0 +1,27 @@
+{
+  "name": "case-marcospano",
+  "version": "1.0.0",
+  "description": "Dieses Script korrigiert clientseitig englische StayAI-Oberflächentexte sowie Datums-, Uhrzeit- und Währungsformate in ein deutsches Format. Es wurde für den Einsatz über ein vorhandenes Custom-JS-Feld entwickelt und läuft vollständig im Browser.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=iife --outfile=dist/stayai-localization.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarcoSpanoDev/case-marcospano.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MarcoSpanoDev/case-marcospano/issues"
+  },
+  "homepage": "https://github.com/MarcoSpanoDev/case-marcospano#readme",
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

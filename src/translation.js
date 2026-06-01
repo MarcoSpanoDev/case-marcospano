@@ -1,4 +1,9 @@
-// src/translation.js
+/**
+ * Central translation dictionary for missing StayAI UI strings.
+ *
+ * Keeps all static English-to-German translations grouped by feature area
+ * and provides a helper to convert those groups into a lookup map.
+ */
 
 export const TRANSLATION_GROUPS = {
   navigation: {
@@ -47,7 +52,7 @@ export const TRANSLATION_GROUPS = {
     Every: "Alle",
     every: "alle",
     week: "Woche",
-    weeks: "Wochen",
+    // weeks: "Wochen",
     day: "Tag",
     days: "Tage",
     month: "Monat",

@@ -1,5 +1,9 @@
-// src/formatters/currency.js
-
+/**
+ * Currency formatter for EUR values.
+ *
+ * Converts English-style EUR amounts into German currency formatting,
+ * for example "€89.92" to "89,92 €".
+ */
 const euroFormatter = new Intl.NumberFormat("de-DE", {
   style: "currency",
   currency: "EUR",

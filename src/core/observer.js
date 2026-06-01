@@ -1,7 +1,20 @@
-// src/core/observer.js
-
+/**
+ * MutationObserver and lifecycle API.
+ *
+ * Watches for dynamically inserted or changed DOM content, schedules debounced
+ * follow-up runs and provides stop/restart behavior for repeated console tests.
+ */
 export function createObserverApi(app) {
   return {
+    /**
+     * Schedules a debounced localization run.
+     *
+     * This prevents the script from running too often while React/StayAI is
+     * rendering many DOM updates in quick succession.
+     *
+     * maxWaitMs ensures that continuous mutations still trigger a run after a
+     * maximum waiting time.
+     */
     scheduleRun() {
       const now = Date.now();
 
@@ -23,6 +36,14 @@ export function createObserverApi(app) {
       }, app.config.debounceMs);
     },
 
+    /**
+     * Starts observing the
+     * This keeps the localization active after the initial run, especially for:
+     * - dynamically inserted elements
+     * - React text updates
+     * - changed accessibility attributes
+     * - lazy-loaded UI content
+     */
     observe() {
       if (app.observer || !app.config.root) return;
 
@@ -30,6 +51,13 @@ export function createObserverApi(app) {
         let needsFollowUpRun = false;
 
         for (const mutation of mutations) {
+          /**
+           * Handles newly inserted DOM nodes.
+           *
+           * app.run(node) localizes the new subtree immediately.
+           * processElement(parentElement) is used because split text-node cases
+           * sometimes only become detectable from the parent element.
+           */
           if (mutation.type === "childList") {
             for (const node of mutation.addedNodes) {
               app.run(node);
@@ -44,11 +72,23 @@ export function createObserverApi(app) {
             }
           }
 
+          /**
+           * Handles changed attributes such as aria-label, title or placeholder.
+           *
+           * This matters because some UI text is not stored as visible text,
+           * but inside attributes used for accessibility or tooltips.
+           */
           if (mutation.type === "attributes") {
             app.processAttributes(mutation.target);
             needsFollowUpRun = true;
           }
 
+          /**
+           * Handles text changes inside existing text nodes.
+           *
+           * This is important when React updates dynamic values without adding a
+           * new element, for example changing a price or billing interval.
+           */
           if (mutation.type === "characterData") {
             const before = mutation.target.nodeValue;
 
@@ -64,6 +104,10 @@ export function createObserverApi(app) {
           }
         }
 
+        /**
+         * A follow-up run catches DOM changes that happen shortly after the
+         * first mutation batch, for example lazy-loaded or multi-step renders.
+         */
         if (needsFollowUpRun) {
           app.scheduleRun();
         }
@@ -80,6 +124,12 @@ export function createObserverApi(app) {
       console.log("[StayAI] MutationObserver active.");
     },
 
+    /**
+     * Stops all active localization behavior.
+     *
+     * This is useful during console testing because the script can be stopped,
+     * changed and restarted without refreshing the page.
+     */
     stop() {
       if (app.routeHandler) {
         window.removeEventListener("popstate", app.routeHandler);
@@ -109,6 +159,12 @@ export function createObserverApi(app) {
       return app.report();
     },
 
+    /**
+     * Fully restarts localization.
+     *
+     * This runs localization once, starts the MutationObserver again and
+     * reinstalls the route hook if available.
+     */
     restart() {
       app.stop();
       app.run(app.config.root);

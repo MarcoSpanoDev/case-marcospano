@@ -1,5 +1,9 @@
-// src/core/dom.js
-
+/**
+ * DOM processing API.
+ *
+ * Walks text nodes and relevant attributes, applies localization rules and
+ * handles split text-node cases such as separated currency values or phrases.
+ */
 export function createDomApi(app) {
   return {
     shouldIgnoreElement(element) {
@@ -45,6 +49,12 @@ export function createDomApi(app) {
       return true;
     },
 
+    /**
+     * Processes a single text node.
+     *
+     * This is the default path for normal UI text where the full string is
+     * available in one node, for example "Subscriptions" or "Next order".
+     */
     processTextNode(node) {
       if (app.shouldIgnoreElement(node.parentElement)) return;
 
@@ -64,6 +74,12 @@ export function createDomApi(app) {
       }
     },
 
+    /**
+     * Processes translatable attributes such as aria-label, title or placeholder.
+     *
+     * This is needed because not all visible or accessible UI text is stored
+     * directly inside text nodes.
+     */
     processAttributes(element) {
       if (app.shouldIgnoreElement(element)) return;
 
@@ -88,11 +104,24 @@ export function createDomApi(app) {
       }
     },
 
+    /**
+     * Handles phrases that StayAI/React renders across multiple text nodes.
+     *
+     * Example:
+     * ["Billed every", "2", "weeks"] should become
+     * ["Alle ", "2", " Wochen abgerechnet"]
+     *
+     * The important part is that dynamic number nodes stay untouched where
+     * possible. This allows React/StayAI to continue updating those values later.
+     */
     processSplitPhraseElement(element) {
       if (app.shouldIgnoreElement(element)) return;
 
       const textNodes = app.getDirectTextNodes(element);
       if (textNodes.length < 2) return;
+
+      // Only handle flat text-node groups here.
+      // Nested elements are skipped to avoid accidentally rewriting complex UI.
       if (app.hasNestedElementChildren(element)) return;
 
       const normalizedValues = textNodes.map((node) =>
@@ -110,6 +139,16 @@ export function createDomApi(app) {
       const singularOrPlural = (count, singular, plural) =>
         Number(count) === 1 ? singular : plural;
 
+      /**
+       * Handles billing frequency phrases.
+       *
+       * Examples:
+       * "Billed every 1 week"  -> "Alle 1 Woche abgerechnet"
+       * "Billed every 2 weeks" -> "Alle 2 Wochen abgerechnet"
+       *
+       * The numeric node is preserved so dynamic billing intervals can still
+       * be updated by the app without losing React's original node structure.
+       */
       const handleBillingFrequency = (unitPattern, singular, plural) => {
         const match = fullText.match(
           new RegExp(
@@ -132,6 +171,8 @@ export function createDomApi(app) {
           new RegExp(`^(${unitPattern})(?:\\s+abgerechnet)?$`, "i").test(value),
         );
 
+        // If the phrase was recognized but the node layout is unexpected,
+        // stop further split-phrase handling for this element.
         if (
           prefixIndex === -1 ||
           numberIndex === -1 ||
@@ -167,6 +208,14 @@ export function createDomApi(app) {
       if (handleBillingFrequency("days?|Tage", "Tag", "Tage")) return;
       if (handleBillingFrequency("months?|Monate", "Monat", "Monate")) return;
 
+      /**
+       * Handles selected flavor counters.
+       *
+       * Example:
+       * "You have selected 2 of 4 flavors"
+       * becomes:
+       * "Du hast 2 von 4 Geschmacksrichtungen ausgewählt"
+       */
       const selectedFlavorsMatch = fullText.match(
         /^(You have selected|Du hast)\s+(\d+)\s+(of|von)\s+(\d+)\s+(flavors|Geschmacksrichtungen)(?:\s+ausgewählt)?$/i,
       );
@@ -209,6 +258,8 @@ export function createDomApi(app) {
             return;
           }
 
+          // Non-number nodes may still contain normal translatable text.
+          // Number nodes are intentionally preserved.
           if (!numberIndexes.includes(index)) {
             const localized = app.localizeValue(node.nodeValue);
             changed = app.setNodeValueIfChanged(node, localized) || changed;
@@ -224,6 +275,19 @@ export function createDomApi(app) {
       }
     },
 
+    /**
+     * Handles prices rendered as split text nodes.
+     *
+     * StayAI/React may render prices like this:
+     * ["€", "269.76"]
+     *
+     * Instead of replacing the whole parent element with one string, only the
+     * amount node is formatted:
+     * ["", "269,76 €"]
+     *
+     * This keeps the original node structure mostly intact and avoids breaking
+     * later React/StayAI updates to the dynamic amount.
+     */
     processSplitCurrencyElement(element) {
       if (app.shouldIgnoreElement(element)) return;
 
@@ -237,15 +301,27 @@ export function createDomApi(app) {
 
       const values = textNodes.map((node) => node.nodeValue.trim());
 
+      // Mark elements that were already handled once.
+      // This prevents repeated restructuring while still allowing a new
+      // English amount inside the same element to be formatted later.
       const markSplitCurrency = () => {
         element.setAttribute("data-stayai-split-currency", "true");
       };
 
+      /**
+       * Formats only the detected amount node.
+       *
+       * Currency marker nodes such as "€" or "EUR" are cleared because the
+       * formatted amount already contains the final German currency suffix.
+       */
       const formatAmountNode = (amountIndex, nodesToClear = []) => {
         const rawAmount = textNodes[amountIndex]?.nodeValue.trim();
 
         if (!rawAmount) return false;
+
+        // Already correctly formatted German values must not be processed again.
         if (germanCurrencyPattern.test(rawAmount)) return false;
+
         if (!englishAmountPattern.test(rawAmount)) return false;
 
         const formatted = app.formatEuroAmount
@@ -276,6 +352,10 @@ export function createDomApi(app) {
         return true;
       };
 
+      /**
+       * If the element was handled before, do not search for currency markers
+       * again. Only format a new English amount if React replaced the amount node.
+       */
       if (element.getAttribute("data-stayai-split-currency") === "true") {
         const amountIndex = values.findIndex((value) =>
           englishAmountPattern.test(value),
@@ -288,6 +368,7 @@ export function createDomApi(app) {
         return;
       }
 
+      // Handles split values like ["€", "269.76"].
       const euroIndex = values.findIndex((value) => value === "€");
 
       if (euroIndex !== -1) {
@@ -303,6 +384,7 @@ export function createDomApi(app) {
         return;
       }
 
+      // Handles split values like ["EUR", "269.76"].
       const eurIndex = values.findIndex((value) => value === "EUR");
 
       if (eurIndex !== -1) {
@@ -317,6 +399,12 @@ export function createDomApi(app) {
       }
     },
 
+    /**
+     * Processes one element-level unit.
+     *
+     * Attributes and split-node cases are handled before the recursive DOM walk
+     * continues with child nodes.
+     */
     processElement(element) {
       if (app.shouldIgnoreElement(element)) return;
 
@@ -325,6 +413,12 @@ export function createDomApi(app) {
       app.processSplitCurrencyElement(element);
     },
 
+    /**
+     * Walks through the DOM and processes both elements and text nodes.
+     *
+     * TreeWalker is used instead of innerHTML replacement to avoid destroying
+     * event listeners, component state or React-managed DOM structures.
+     */
     walk(root = app.config.root) {
       if (!root) return;
 
