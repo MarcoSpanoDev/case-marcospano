@@ -3,6 +3,10 @@
  *
  * Keeps all static English-to-German translations grouped by feature area
  * and provides a helper to convert those groups into a lookup map.
+ *
+ * Note:
+ * Some entries intentionally correct already partially translated strings.
+ * This is needed because the app does not expose a template-level i18n API.
  */
 
 export const TRANSLATION_GROUPS = {
@@ -14,22 +18,29 @@ export const TRANSLATION_GROUPS = {
     Active: "Aktiv",
     Paused: "Pausiert",
     Skipped: "Übersprungen",
+    Canceled: "Storniert",
   },
 
   subscriptionLabels: {
+    Subscription: "Abonnement",
+    Subscriptions: "Abonnements",
     "New Subscription": "Neues Abonnement",
     "New Abonnement": "Neues Abonnement",
+    "Active Subscriptions": "Aktive Abonnements",
+    "Paused Subscriptions": "Pausierte Abonnements",
+    "Canceled Subscriptions": "Stornierte Abonnements",
+
+    // Corrects mixed German/English or partially translated labels.
     "Paused Abonnements": "Pausierte Abonnements",
-    Subscriptions: "Abonnements",
-    Subscription: "Abonnement",
+    "Pausiert Abonnements": "Pausierte Abonnements",
   },
 
   subscriptionDetails: {
     "Started on": "Gestartet am",
     "Selected flavors: (": "Ausgewählte Geschmacksrichtungen: (",
     "flavors for": "Geschmacksrichtungen für",
-    "Weiter delivery:": "Nächste Lieferung:",
     "Next delivery:": "Nächste Lieferung:",
+    "Weiter delivery:": "Nächste Lieferung:",
   },
 
   selectionSummary: {
@@ -43,20 +54,20 @@ export const TRANSLATION_GROUPS = {
     "Billed every": "Alle",
   },
 
-  statusLines: {
-    "Skipped until": "Übersprungen bis",
-    "Paused until": "Pausiert bis",
-  },
-
   frequencyUnits: {
     Every: "Alle",
     every: "alle",
     week: "Woche",
-    // weeks: "Wochen",
+    weeks: "Wochen",
     day: "Tag",
     days: "Tage",
     month: "Monat",
     months: "Monate",
+  },
+
+  statusLines: {
+    "Skipped until": "Übersprungen bis",
+    "Paused until": "Pausiert bis",
   },
 
   actions: {
@@ -75,6 +86,28 @@ export const TRANSLATION_GROUPS = {
     "Payment method": "Zahlungsmethode",
     Quantity: "Menge",
     Frequency: "Häufigkeit",
+  },
+
+  profile: {
+    "Delivery Address": "Lieferadresse",
+    "Update your delivery address for subscriptions":
+      "Aktualisiere deine Lieferadresse für Abonnements",
+    "Street Address": "Straße und Hausnummer",
+
+    // Intentionally left untranslated for the live demo.
+    // City: "Stadt",
+
+    "Postal Code": "Postleitzahl",
+    Country: "Land",
+    Germany: "Deutschland",
+
+    // Corrects mixed German/English button text.
+    "Bearbeiten Address": "Adresse bearbeiten",
+  },
+
+  settings: {
+    "Werde benachrichtigt, wenn deine Abonnement verlängert wird":
+      "Werde benachrichtigt, wenn dein Abonnement verlängert wird",
   },
 };
 

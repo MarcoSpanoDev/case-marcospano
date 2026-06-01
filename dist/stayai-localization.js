@@ -945,21 +945,27 @@
         subscriptionStates: {
           Active: "Aktiv",
           Paused: "Pausiert",
-          Skipped: "\xDCbersprungen"
+          Skipped: "\xDCbersprungen",
+          Canceled: "Storniert"
         },
         subscriptionLabels: {
+          Subscription: "Abonnement",
+          Subscriptions: "Abonnements",
           "New Subscription": "Neues Abonnement",
           "New Abonnement": "Neues Abonnement",
+          "Active Subscriptions": "Aktive Abonnements",
+          "Paused Subscriptions": "Pausierte Abonnements",
+          "Canceled Subscriptions": "Stornierte Abonnements",
+          // Corrects mixed German/English or partially translated labels.
           "Paused Abonnements": "Pausierte Abonnements",
-          Subscriptions: "Abonnements",
-          Subscription: "Abonnement"
+          "Pausiert Abonnements": "Pausierte Abonnements"
         },
         subscriptionDetails: {
           "Started on": "Gestartet am",
           "Selected flavors: (": "Ausgew\xE4hlte Geschmacksrichtungen: (",
           "flavors for": "Geschmacksrichtungen f\xFCr",
-          "Weiter delivery:": "N\xE4chste Lieferung:",
-          "Next delivery:": "N\xE4chste Lieferung:"
+          "Next delivery:": "N\xE4chste Lieferung:",
+          "Weiter delivery:": "N\xE4chste Lieferung:"
         },
         selectionSummary: {
           "You have selected": "Du hast",
@@ -970,19 +976,19 @@
         billingFrequency: {
           "Billed every": "Alle"
         },
-        statusLines: {
-          "Skipped until": "\xDCbersprungen bis",
-          "Paused until": "Pausiert bis"
-        },
         frequencyUnits: {
           Every: "Alle",
           every: "alle",
           week: "Woche",
-          // weeks: "Wochen",
+          weeks: "Wochen",
           day: "Tag",
           days: "Tage",
           month: "Monat",
           months: "Monate"
+        },
+        statusLines: {
+          "Skipped until": "\xDCbersprungen bis",
+          "Paused until": "Pausiert bis"
         },
         actions: {
           "Skip next": "N\xE4chste Lieferung \xFCberspringen",
@@ -999,6 +1005,21 @@
           "Payment method": "Zahlungsmethode",
           Quantity: "Menge",
           Frequency: "H\xE4ufigkeit"
+        },
+        profile: {
+          "Delivery Address": "Lieferadresse",
+          "Update your delivery address for subscriptions": "Aktualisiere deine Lieferadresse f\xFCr Abonnements",
+          "Street Address": "Stra\xDFe und Hausnummer",
+          // Intentionally left untranslated for the live demo.
+          // City: "Stadt",
+          "Postal Code": "Postleitzahl",
+          Country: "Land",
+          Germany: "Deutschland",
+          // Corrects mixed German/English button text.
+          "Bearbeiten Address": "Adresse bearbeiten"
+        },
+        settings: {
+          "Werde benachrichtigt, wenn deine Abonnement verl\xE4ngert wird": "Werde benachrichtigt, wenn dein Abonnement verl\xE4ngert wird"
         }
       };
     }
