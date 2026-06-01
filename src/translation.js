@@ -33,6 +33,7 @@ export const TRANSLATION_GROUPS = {
     // Corrects mixed German/English or partially translated labels.
     "Paused Abonnements": "Pausierte Abonnements",
     "Pausiert Abonnements": "Pausierte Abonnements",
+    "pausierte Abonnements": "pausierten Abonnements",
   },
 
   subscriptionDetails: {
@@ -52,6 +53,16 @@ export const TRANSLATION_GROUPS = {
 
   billingFrequency: {
     "Billed every": "Alle",
+  },
+
+  cancellationDialog: {
+    "Abonnement stornieren": "Abonnement stornieren",
+
+    "Bist du sicher, dass du diese Abonnement stornieren möchtest? Diese Aktion kann nicht rückgängig gemacht werden.":
+      "Bist du sicher, dass du dieses Abonnement stornieren möchtest? Diese Aktion kann nicht rückgängig gemacht werden.",
+
+    "Deine Abonnement wird sofort storniert und du erhältst keine weiteren Lieferungen mehr.":
+      "Dein Abonnement wird sofort storniert und du erhältst keine weiteren Lieferungen mehr.",
   },
 
   frequencyUnits: {

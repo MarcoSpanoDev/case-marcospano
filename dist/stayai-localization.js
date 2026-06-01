@@ -958,7 +958,8 @@
           "Canceled Subscriptions": "Stornierte Abonnements",
           // Corrects mixed German/English or partially translated labels.
           "Paused Abonnements": "Pausierte Abonnements",
-          "Pausiert Abonnements": "Pausierte Abonnements"
+          "Pausiert Abonnements": "Pausierte Abonnements",
+          "pausierte Abonnements": "pausierten Abonnements"
         },
         subscriptionDetails: {
           "Started on": "Gestartet am",
@@ -975,6 +976,11 @@
         },
         billingFrequency: {
           "Billed every": "Alle"
+        },
+        cancellationDialog: {
+          "Abonnement stornieren": "Abonnement stornieren",
+          "Bist du sicher, dass du diese Abonnement stornieren m\xF6chtest? Diese Aktion kann nicht r\xFCckg\xE4ngig gemacht werden.": "Bist du sicher, dass du dieses Abonnement stornieren m\xF6chtest? Diese Aktion kann nicht r\xFCckg\xE4ngig gemacht werden.",
+          "Deine Abonnement wird sofort storniert und du erh\xE4ltst keine weiteren Lieferungen mehr.": "Dein Abonnement wird sofort storniert und du erh\xE4ltst keine weiteren Lieferungen mehr."
         },
         frequencyUnits: {
           Every: "Alle",
