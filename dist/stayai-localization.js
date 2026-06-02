@@ -1048,6 +1048,24 @@
   function formatDateFragments(value) {
     let result = value;
     result = result.replace(
+      /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th),\s*(\d{4})\b/g,
+      (match, month, day, year) => {
+        const translated = monthTranslations.get(month);
+        return translated ? `${Number(day)}. ${translated} ${year}` : match;
+      }
+    );
+    result = result.replace(
+      /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})\b/g,
+      (match, month, year) => {
+        const translated = monthTranslations.get(month);
+        return translated ? `${translated} ${year}` : match;
+      }
+    );
+    result = result.replace(
+      /\b(Su|Mo|Tu|We|Th|Fr|Sa)\b/g,
+      (match) => weekdayShortTranslations.get(match) ?? match
+    );
+    result = result.replace(
       /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/g,
       (match, day, month) => {
         const translated = monthTranslations.get(month);
@@ -1070,7 +1088,7 @@
     );
     return result;
   }
-  var monthTranslations, monthNumbers, weekdayTranslations;
+  var monthTranslations, monthNumbers, weekdayTranslations, weekdayShortTranslations;
   var init_date = __esm({
     "src/formatters/date.js"() {
       monthTranslations = /* @__PURE__ */ new Map([
@@ -1131,6 +1149,15 @@
         ["Friday", "Freitag"],
         ["Saturday", "Samstag"],
         ["Sunday", "Sonntag"]
+      ]);
+      weekdayShortTranslations = /* @__PURE__ */ new Map([
+        ["Su", "So"],
+        ["Mo", "Mo"],
+        ["Tu", "Di"],
+        ["We", "Mi"],
+        ["Th", "Do"],
+        ["Fr", "Fr"],
+        ["Sa", "Sa"]
       ]);
     }
   });

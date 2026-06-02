@@ -66,9 +66,44 @@ const weekdayTranslations = new Map([
   ["Sunday", "Sonntag"],
 ]);
 
+const weekdayShortTranslations = new Map([
+  ["Su", "So"],
+  ["Mo", "Mo"],
+  ["Tu", "Di"],
+  ["We", "Mi"],
+  ["Th", "Do"],
+  ["Fr", "Fr"],
+  ["Sa", "Sa"],
+]);
+
 export function formatDateFragments(value) {
   let result = value;
 
+  // "July 2nd, 2026" -> "2. Juli 2026"
+  result = result.replace(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th),\s*(\d{4})\b/g,
+    (match, month, day, year) => {
+      const translated = monthTranslations.get(month);
+      return translated ? `${Number(day)}. ${translated} ${year}` : match;
+    },
+  );
+
+  // "June 2026" -> "Juni 2026"
+  result = result.replace(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})\b/g,
+    (match, month, year) => {
+      const translated = monthTranslations.get(month);
+      return translated ? `${translated} ${year}` : match;
+    },
+  );
+
+  // "Su Mo Tu We Th Fr Sa" -> "So Mo Di Mi Do Fr Sa"
+  result = result.replace(
+    /\b(Su|Mo|Tu|We|Th|Fr|Sa)\b/g,
+    (match) => weekdayShortTranslations.get(match) ?? match,
+  );
+
+  // "14 May" -> "14. Mai"
   result = result.replace(
     /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/g,
     (match, day, month) => {
@@ -77,6 +112,7 @@ export function formatDateFragments(value) {
     },
   );
 
+  // "May 14, 2026" -> "14.05.2026"
   result = result.replace(
     /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})\b/g,
     (match, month, day, year) => {
