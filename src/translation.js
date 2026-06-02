@@ -21,6 +21,17 @@ export const TRANSLATION_GROUPS = {
     Canceled: "Storniert",
   },
 
+  skipDeliveriesDialog: {
+    "Skip deliveries": "Lieferungen überspringen",
+
+    "Select how many weeks you want to skip your subscription.":
+      "Wähle aus, für wie viele Wochen du dein Abonnement überspringen möchtest.",
+
+    // Corrects partially translated German text.
+    "Wähle aus, wie viele Wochen du deine Abonnement überspringen möchtest.":
+      "Wähle aus, für wie viele Wochen du dein Abonnement überspringen möchtest.",
+  },
+
   subscriptionLabels: {
     Subscription: "Abonnement",
     Subscriptions: "Abonnements",
@@ -34,6 +45,19 @@ export const TRANSLATION_GROUPS = {
     "Paused Abonnements": "Pausierte Abonnements",
     "Pausiert Abonnements": "Pausierte Abonnements",
     "pausierte Abonnements": "pausierten Abonnements",
+  },
+
+  pauseDialog: {
+    "Pause subscription": "Abonnement pausieren",
+
+    "Select a date until when you want to pause your subscription.":
+      "Wähle ein Datum aus, bis zu dem du dein Abonnement pausieren möchtest.",
+
+    "Pause until": "Pausieren bis",
+
+    Cancel: "Abbrechen",
+
+    "Pause Abonnement": "Abonnement pausieren",
   },
 
   subscriptionDetails: {

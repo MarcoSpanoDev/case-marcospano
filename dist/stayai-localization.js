@@ -948,6 +948,12 @@
           Skipped: "\xDCbersprungen",
           Canceled: "Storniert"
         },
+        skipDeliveriesDialog: {
+          "Skip deliveries": "Lieferungen \xFCberspringen",
+          "Select how many weeks you want to skip your subscription.": "W\xE4hle aus, f\xFCr wie viele Wochen du dein Abonnement \xFCberspringen m\xF6chtest.",
+          // Corrects partially translated German text.
+          "W\xE4hle aus, wie viele Wochen du deine Abonnement \xFCberspringen m\xF6chtest.": "W\xE4hle aus, f\xFCr wie viele Wochen du dein Abonnement \xFCberspringen m\xF6chtest."
+        },
         subscriptionLabels: {
           Subscription: "Abonnement",
           Subscriptions: "Abonnements",
@@ -960,6 +966,13 @@
           "Paused Abonnements": "Pausierte Abonnements",
           "Pausiert Abonnements": "Pausierte Abonnements",
           "pausierte Abonnements": "pausierten Abonnements"
+        },
+        pauseDialog: {
+          "Pause subscription": "Abonnement pausieren",
+          "Select a date until when you want to pause your subscription.": "W\xE4hle ein Datum aus, bis zu dem du dein Abonnement pausieren m\xF6chtest.",
+          "Pause until": "Pausieren bis",
+          Cancel: "Abbrechen",
+          "Pause Abonnement": "Abonnement pausieren"
         },
         subscriptionDetails: {
           "Started on": "Gestartet am",
